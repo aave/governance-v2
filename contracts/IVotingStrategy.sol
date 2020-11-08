@@ -3,5 +3,5 @@ pragma solidity 0.7.4;
 pragma experimental ABIEncoderV2;
 
 interface IVotingStrategy {
-  function getVotingPower(address user, uint256 blockNumber) external view returns (uint256);
+  function getVotingPowerAt(address user, uint256 blockNumber) external view returns (uint256);
 }

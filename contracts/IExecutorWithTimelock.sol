@@ -5,6 +5,12 @@ pragma experimental ABIEncoderV2;
 interface IExecutorWithTimelock {
   function getQuorum() external view returns (uint256);
 
+  function getForVotesNeededForQuorum() external view returns (uint256);
+
+  function getVotesDifferential() external view returns (uint256);
+
+  function getForVotesNeededWithDifferential(uint256 against) external view returns (uint256);
+
   function getVotingDuration() external view returns (uint256);
 
   function getVoteDifferential() external view returns (uint256);
@@ -21,4 +27,6 @@ interface IExecutorWithTimelock {
     external
     payable
     returns (bytes memory);
+
+  function cancelTransaction(address payload, uint256 executionBlock) external;
 }

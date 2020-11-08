@@ -8,13 +8,8 @@ import {IPropositionStrategy} from './IPropositionStrategy.sol';
 import {IExecutorWithTimelock} from './IExecutorWithTimelock.sol';
 import {isContract, add256, sub256, getChainId} from './Helpers.sol';
 
-// TODO review if cancelled state is needed
-// TODO review if nonce is needed for vote with signature, in order to allow overriding of votes
 // TODO review if it's important to validate that the creator doesn't have other proposals in parallel (on creation) If so, needed to recover the
 //     mapping (address => uint) public latestProposalIds;
-// TODO should validate the quorum and voting durations coming from the timelock on creation?
-// TODO review if needed to NOT allow to override votes  (hasVote on Vote struct)
-// TODO review if it's a problem to start proposals from id 0
 // TODO add getters
 // TODO add events
 contract AaveGovernanceV2 is Ownable {
@@ -34,16 +29,16 @@ contract AaveGovernanceV2 is Ownable {
     uint256 forVotes;
     uint256 againstVotes;
     bool executed;
+    bool canceled;
     address strategy;
     bytes32 ipfsHash;
     mapping(address => Vote) votes;
   }
 
-  enum ProposalState {Pending, Active, Failed, Succeeded, Queued, Expired, Executed}
+  enum ProposalState {Pending, Canceled, Active, Failed, Succeeded, Queued, Expired, Executed}
 
   address private _governanceStrategy;
-  uint256 private _propositionPowerThreshold; // In per thousand
-  uint256 private _votingDelay; // blocks delta until the proposal will be opened for voting
+  uint256 private _votingDelay;
 
   uint256 private _proposalsCount;
   mapping(uint256 => Proposal) private _proposals;
@@ -54,14 +49,9 @@ contract AaveGovernanceV2 is Ownable {
   bytes32 public constant VOTE_EMITTED_TYPEHASH = keccak256('VoteEmitted(uint256 id,bool option)');
   string public constant NAME = 'Aave Governance v2';
 
-  constructor(
-    address governanceStrategy,
-    uint256 propositionPowerThreshold,
-    uint256 votingDelay
-  ) {
-    _governanceStrategy = governanceStrategy;
-    _propositionPowerThreshold = propositionPowerThreshold;
-    _votingDelay = votingDelay;
+  constructor(address governanceStrategy, uint256 votingDelay) {
+    _setGovernanceStrategy(governanceStrategy);
+    _setVotingDelay(votingDelay);
   }
 
   function create(
@@ -70,20 +60,16 @@ contract AaveGovernanceV2 is Ownable {
     bytes32 ipfsHash
   ) public returns (uint256) {
     require(
-      IPropositionStrategy(_governanceStrategy).getPropositionPower(msg.sender) >=
-        _propositionPowerThreshold,
+      IPropositionStrategy(_governanceStrategy).getPropositionPowerAt(
+        msg.sender,
+        block.number - 1
+      ) >= IPropositionStrategy(_governanceStrategy).getPropositionPowerNeeded(),
       'INVALID_PROPOSITION_POWER'
     );
     require(isContract(payload), 'INVALID_NON_CONTRACT_PAYLOAD');
 
-    uint256 quorum = IExecutorWithTimelock(executor).getQuorum();
-    uint256 votingDuration = IExecutorWithTimelock(executor).getVotingDuration();
-
-    require(quorum != 0, 'INVALID_QUORUM');
-    require(votingDuration != 0, 'INVALID_VOTING_DURATION');
-
     uint256 startBlock = add256(block.number, _votingDelay);
-    uint256 endBlock = add256(startBlock, votingDuration);
+    uint256 endBlock = add256(startBlock, IExecutorWithTimelock(executor).getVotingDuration());
 
     uint256 previousProposalsCount = _proposalsCount;
 
@@ -101,8 +87,27 @@ contract AaveGovernanceV2 is Ownable {
     return newProposal.id;
   }
 
+  function cancel(uint256 proposalId) public {
+    ProposalState state = getProposalState(proposalId);
+    require(
+      state != ProposalState.Executed && state != ProposalState.Canceled,
+      'ONLY_BEFORE_EXECUTED'
+    );
+
+    Proposal storage proposal = _proposals[proposalId];
+    require(
+      IPropositionStrategy(_governanceStrategy).getPropositionPowerAt(
+        proposal.creator,
+        block.number - 1
+      ) < IPropositionStrategy(_governanceStrategy).getPropositionPowerNeeded(),
+      'CREATOR_ABOVE_THRESHOLD'
+    );
+    proposal.canceled = true;
+    proposal.executor.cancelTransaction(proposal.payload, proposal.executionBlock);
+  }
+
   function queue(uint256 proposalId) public {
-    require(state(proposalId) == ProposalState.Succeeded, 'INVALID_STATE_FOR_QUEUE');
+    require(getProposalState(proposalId) == ProposalState.Succeeded, 'INVALID_STATE_FOR_QUEUE');
     Proposal storage proposal = _proposals[proposalId];
     uint256 executionBlock = add256(block.timestamp, proposal.executor.delay());
     _queueOrRevert(proposal.executor, proposal.payload, executionBlock);
@@ -114,12 +119,12 @@ contract AaveGovernanceV2 is Ownable {
     address payload,
     uint256 executionBlock
   ) internal {
-    require(!executor.queuedTransactions(keccak256(abi.encode(payload))), 'DUPLICATED_PAYLOAD');
+    require(!executor.queuedTransactions(keccak256(abi.encode(payload, executionBlock))), 'DUPLICATED_PAYLOAD');
     executor.queueTransaction(payload, executionBlock);
   }
 
   function execute(uint256 proposalId) public payable {
-    require(state(proposalId) == ProposalState.Queued, 'ONLY_QUEUED_PROPOSALS');
+    require(getProposalState(proposalId) == ProposalState.Queued, 'ONLY_QUEUED_PROPOSALS');
     Proposal storage proposal = _proposals[proposalId];
     proposal.executed = true;
     proposal.executor.executeTransaction(proposal.payload, proposal.executionBlock);
@@ -153,11 +158,13 @@ contract AaveGovernanceV2 is Ownable {
     uint256 proposalId,
     bool support
   ) internal {
-    require(state(proposalId) == ProposalState.Active, 'VOTING_CLOSED');
+    require(getProposalState(proposalId) == ProposalState.Active, 'VOTING_CLOSED');
     Proposal storage proposal = _proposals[proposalId];
     Vote storage vote = proposal.votes[voter];
 
-    uint256 votingPower = IVotingStrategy(proposal.strategy).getVotingPower(
+    require(vote.votingPower == 0, 'VOTE_ALREADY_SUBMITTED');
+
+    uint256 votingPower = IVotingStrategy(proposal.strategy).getVotingPowerAt(
       voter,
       proposal.startBlock
     );
@@ -169,31 +176,40 @@ contract AaveGovernanceV2 is Ownable {
     }
 
     vote.support = support;
-    vote.votingPower = uint248(votingPower); // TODO review, but should not be any problem with this cast
+    vote.votingPower = uint248(votingPower);
   }
 
   function setGovernanceStrategy(address governanceStrategy) public onlyOwner {
+    _setGovernanceStrategy(governanceStrategy);
+  }
+
+  function _setGovernanceStrategy(address governanceStrategy) internal {
+    require(isContract(governanceStrategy), 'STRATEGY_NEEDS_TO_BE_CONTRACT');
     _governanceStrategy = governanceStrategy;
   }
 
-  function setPropositionPowerThreshold(uint256 propositionPowerThreshold) public onlyOwner {
-    _propositionPowerThreshold = propositionPowerThreshold;
+  function setVotingDelay(uint256 votingDelay) public onlyOwner {
+    _setVotingDelay(votingDelay);
   }
 
-  function setVotingDelay(uint256 votingDelay) public onlyOwner {
+  function _setVotingDelay(uint256 votingDelay) internal {
+    require(votingDelay > 0, 'INVALID_ZERO_DELAY');
     _votingDelay = votingDelay;
   }
 
-  function state(uint256 proposalId) public view returns (ProposalState) {
+  function getProposalState(uint256 proposalId) public view returns (ProposalState) {
     require(_proposalsCount >= proposalId, 'INVALID_PROPOSAL_ID');
     Proposal storage proposal = _proposals[proposalId];
-    if (block.number <= proposal.startBlock) {
+    if (proposal.canceled) {
+      return ProposalState.Canceled;
+    } else if (block.number <= proposal.startBlock) {
       return ProposalState.Pending;
     } else if (block.number <= proposal.endBlock) {
       return ProposalState.Active;
     } else if (
-      proposal.forVotes <= add256(proposal.againstVotes, proposal.executor.getVoteDifferential()) ||
-      proposal.forVotes < proposal.executor.getQuorum()
+      proposal.forVotes <=
+      proposal.executor.getForVotesNeededWithDifferential(proposal.againstVotes) ||
+      proposal.forVotes < proposal.executor.getForVotesNeededForQuorum()
     ) {
       return ProposalState.Failed;
     } else if (proposal.executionBlock == 0) {

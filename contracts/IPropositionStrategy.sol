@@ -3,6 +3,7 @@ pragma solidity 0.7.4;
 pragma experimental ABIEncoderV2;
 
 interface IPropositionStrategy {
-  // In per thousand of the total proposition power
-  function getPropositionPower(address user) external view returns (uint256);
+  function getPropositionPowerAt(address user, uint256 blockNumber) external view returns (uint256);
+
+  function getPropositionPowerNeeded() external view returns (uint256);
 }
