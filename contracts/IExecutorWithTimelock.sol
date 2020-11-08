@@ -11,22 +11,30 @@ interface IExecutorWithTimelock {
 
   function getForVotesNeededWithDifferential(uint256 against) external view returns (uint256);
 
-  function getVotingDuration() external view returns (uint256);
+  function getAdmin() external view returns (address);
 
-  function getVoteDifferential() external view returns (uint256);
+  function getPendingAdmin() external view returns (address);
 
-  function delay() external view returns (uint256);
+  function getDelay() external view returns (uint256);
+
+  function isPayloadQueued(bytes32 hashId) external view returns (bool);
 
   function GRACE_PERIOD() external view returns (uint256);
 
-  function queuedTransactions(bytes32 hash) external view returns (bool);
+  function VOTING_DURATION() external view returns (uint256);
 
-  function queueTransaction(address payload, uint256 executionBlock) external returns (bytes32);
+  function VOTE_DIFFERENTIAL() external view returns (uint256);
 
-  function executeTransaction(address payload, uint256 executionBlock)
+  function MINIMUM_DELAY() external view returns (uint256);
+
+  function MAXIMUM_DELAY() external view returns (uint256);
+
+  function queueTransaction(address payload, uint256 executionTime) external returns (bytes32);
+
+  function executeTransaction(address payload, uint256 executionTime)
     external
     payable
     returns (bytes memory);
 
-  function cancelTransaction(address payload, uint256 executionBlock) external;
+  function cancelTransaction(address payload, uint256 executionTime) external;
 }
