@@ -100,7 +100,7 @@ contract AaveGovernanceV2 is Ownable {
         proposal.creator,
         block.number - 1
       ) < IPropositionStrategy(_governanceStrategy).getPropositionPowerNeeded(),
-      'CREATOR_ABOVE_THRESHOLD'
+      'CREATOR_BELOW_THRESHOLD'
     );
     proposal.canceled = true;
     proposal.executor.cancelTransaction(proposal.payload, proposal.executionTime);

@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.7.4;
 
-import {SafeMath} from './SafeMath.sol';
 import {IPayload} from './IPayload.sol';
 import {IExecutorWithTimelock} from './IExecutorWithTimelock.sol';
+import {add256} from './Helpers.sol';
 
 // TODO add events
 contract ExecutorWithTimelock is IExecutorWithTimelock {
-  using SafeMath for uint256;
-
   uint256 public constant override GRACE_PERIOD = 14 days;
   uint256 public constant override MINIMUM_DELAY = 1 days;
   uint256 public constant override MAXIMUM_DELAY = 30 days;
@@ -62,7 +60,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     onlyAdmin
     returns (bytes32)
   {
-    require(executionTime >= block.timestamp.add(_delay), 'EXECUTION_TIME_UNDERESTIMATED');
+    require(executionTime >= add256(block.timestamp, _delay), 'EXECUTION_TIME_UNDERESTIMATED');
 
     bytes32 hashId = keccak256(abi.encode(payload, executionTime));
     _queuedTransactions[hashId] = true;
@@ -85,7 +83,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     bytes32 hashId = keccak256(abi.encode(payload, executionTime));
     require(_queuedTransactions[hashId], 'PAYLOAD_IS_NOT_QUEUED');
     require(block.timestamp >= executionTime, 'TIMELOCK_NOT_FINISHED');
-    require(block.timestamp <= executionTime.add(GRACE_PERIOD), 'GRACE_PERIOD_FINISHED');
+    require(block.timestamp <= add256(executionTime, GRACE_PERIOD), 'GRACE_PERIOD_FINISHED');
 
     _queuedTransactions[hashId] = false;
 
