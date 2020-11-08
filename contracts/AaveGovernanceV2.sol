@@ -22,7 +22,11 @@ contract AaveGovernanceV2 is Ownable {
     uint256 id;
     address creator;
     IExecutorWithTimelock executor;
-    address payload;
+    address[] targets;
+    uint256[] values;
+    string[] signatures;
+    bytes[] calldatas;
+    bool[] withDelegatecalls;
     uint256 startBlock;
     uint256 endBlock;
     uint256 executionTime;
@@ -54,11 +58,28 @@ contract AaveGovernanceV2 is Ownable {
     _setVotingDelay(votingDelay);
   }
 
+  struct CreateVars {
+    uint256 startBlock;
+    uint256 endBlock;
+    uint256 previousProposalsCount;
+  }
+
   function create(
     IExecutorWithTimelock executor,
-    address payload,
+    address[] memory targets,
+    uint256[] memory values,
+    string[] memory signatures,
+    bytes[] memory calldatas,
+    bool[] memory withDelegatecalls,
     bytes32 ipfsHash
   ) public returns (uint256) {
+    require(targets.length != 0, 'INVALID_EMPTY_TARGETS');
+    require(
+      targets.length == values.length &&
+        targets.length == signatures.length &&
+        targets.length == calldatas.length,
+      'INCONSISTENT_PARAMS_LENGTH'
+    );
     require(
       IPropositionStrategy(_governanceStrategy).getPropositionPowerAt(
         msg.sender,
@@ -66,20 +87,25 @@ contract AaveGovernanceV2 is Ownable {
       ) >= IPropositionStrategy(_governanceStrategy).getPropositionPowerNeeded(),
       'INVALID_PROPOSITION_POWER'
     );
-    require(isContract(payload), 'INVALID_NON_CONTRACT_PAYLOAD');
 
-    uint256 startBlock = add256(block.number, _votingDelay);
-    uint256 endBlock = add256(startBlock, IExecutorWithTimelock(executor).VOTING_DURATION());
+    CreateVars memory vars;
 
-    uint256 previousProposalsCount = _proposalsCount;
+    vars.startBlock = add256(block.number, _votingDelay);
+    vars.endBlock = add256(vars.startBlock, IExecutorWithTimelock(executor).VOTING_DURATION());
 
-    Proposal storage newProposal = _proposals[previousProposalsCount];
-    newProposal.id = previousProposalsCount;
+    vars.previousProposalsCount = _proposalsCount;
+
+    Proposal storage newProposal = _proposals[vars.previousProposalsCount];
+    newProposal.id = vars.previousProposalsCount;
     newProposal.creator = msg.sender;
     newProposal.executor = executor;
-    newProposal.payload = payload;
-    newProposal.startBlock = startBlock;
-    newProposal.endBlock = endBlock;
+    newProposal.targets = targets;
+    newProposal.values = values;
+    newProposal.signatures = signatures;
+    newProposal.calldatas = calldatas;
+    newProposal.withDelegatecalls = withDelegatecalls;
+    newProposal.startBlock = vars.startBlock;
+    newProposal.endBlock = vars.endBlock;
     newProposal.strategy = _governanceStrategy;
     newProposal.ipfsHash = ipfsHash;
     _proposalsCount++;
@@ -103,34 +129,68 @@ contract AaveGovernanceV2 is Ownable {
       'CREATOR_BELOW_THRESHOLD'
     );
     proposal.canceled = true;
-    proposal.executor.cancelTransaction(proposal.payload, proposal.executionTime);
+    for (uint256 i = 0; i < proposal.targets.length; i++) {
+      proposal.executor.cancelTransaction(
+        proposal.targets[i],
+        proposal.values[i],
+        proposal.signatures[i],
+        proposal.calldatas[i],
+        proposal.executionTime,
+        proposal.withDelegatecalls[i]
+      );
+    }
   }
 
   function queue(uint256 proposalId) public {
     require(getProposalState(proposalId) == ProposalState.Succeeded, 'INVALID_STATE_FOR_QUEUE');
     Proposal storage proposal = _proposals[proposalId];
     uint256 executionTime = add256(block.timestamp, proposal.executor.getDelay());
-    _queueOrRevert(proposal.executor, proposal.payload, executionTime);
+    for (uint256 i = 0; i < proposal.targets.length; i++) {
+      _queueOrRevert(
+        proposal.executor,
+        proposal.targets[i],
+        proposal.values[i],
+        proposal.signatures[i],
+        proposal.calldatas[i],
+        executionTime,
+        proposal.withDelegatecalls[i]
+      );
+    }
     proposal.executionTime = executionTime;
   }
 
   function _queueOrRevert(
     IExecutorWithTimelock executor,
-    address payload,
-    uint256 executionTime
+    address target,
+    uint256 value,
+    string memory signature,
+    bytes memory callData,
+    uint256 executionTime,
+    bool withDelegatecall
   ) internal {
     require(
-      !executor.isPayloadQueued(keccak256(abi.encode(payload, executionTime))),
-      'DUPLICATED_PAYLOAD'
+      !executor.isActionQueued(
+        keccak256(abi.encode(target, value, signature, callData, executionTime, withDelegatecall))
+      ),
+      'DUPLICATED_ACTION'
     );
-    executor.queueTransaction(payload, executionTime);
+    executor.queueTransaction(target, value, signature, callData, executionTime, withDelegatecall);
   }
 
   function execute(uint256 proposalId) public payable {
     require(getProposalState(proposalId) == ProposalState.Queued, 'ONLY_QUEUED_PROPOSALS');
     Proposal storage proposal = _proposals[proposalId];
     proposal.executed = true;
-    proposal.executor.executeTransaction(proposal.payload, proposal.executionTime);
+    for (uint256 i = 0; i < proposal.targets.length; i++) {
+      proposal.executor.executeTransaction{value: proposal.values[i]}(
+        proposal.targets[i],
+        proposal.values[i],
+        proposal.signatures[i],
+        proposal.calldatas[i],
+        proposal.executionTime,
+        proposal.withDelegatecalls[i]
+      );
+    }
   }
 
   function submitVote(uint256 proposalId, bool support) public {

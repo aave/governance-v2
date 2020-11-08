@@ -17,7 +17,7 @@ interface IExecutorWithTimelock {
 
   function getDelay() external view returns (uint256);
 
-  function isPayloadQueued(bytes32 hashId) external view returns (bool);
+  function isActionQueued(bytes32 actionHash) external view returns (bool);
 
   function GRACE_PERIOD() external view returns (uint256);
 
@@ -29,12 +29,30 @@ interface IExecutorWithTimelock {
 
   function MAXIMUM_DELAY() external view returns (uint256);
 
-  function queueTransaction(address payload, uint256 executionTime) external returns (bytes32);
+  function queueTransaction(
+    address target,
+    uint256 value,
+    string memory signature,
+    bytes memory data,
+    uint256 executionTime,
+    bool withDelegatecall
+  ) external returns (bytes32);
 
-  function executeTransaction(address payload, uint256 executionTime)
-    external
-    payable
-    returns (bytes memory);
+  function executeTransaction(
+    address target,
+    uint256 value,
+    string memory signature,
+    bytes memory data,
+    uint256 executionTime,
+    bool withDelegatecall
+  ) external payable returns (bytes memory);
 
-  function cancelTransaction(address payload, uint256 executionTime) external;
+  function cancelTransaction(
+    address target,
+    uint256 value,
+    string memory signature,
+    bytes memory data,
+    uint256 executionTime,
+    bool withDelegatecall
+  ) external;
 }

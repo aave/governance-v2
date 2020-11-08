@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.7.4;
+pragma experimental ABIEncoderV2;
 
-import {IPayload} from './IPayload.sol';
 import {IExecutorWithTimelock} from './IExecutorWithTimelock.sol';
 import {add256} from './Helpers.sol';
 
@@ -54,44 +54,74 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     _pendingAdmin = pendingAdmin;
   }
 
-  function queueTransaction(address payload, uint256 executionTime)
-    public
-    override
-    onlyAdmin
-    returns (bytes32)
-  {
+  function queueTransaction(
+    address target,
+    uint256 value,
+    string memory signature,
+    bytes memory data,
+    uint256 executionTime,
+    bool withDelegatecall
+  ) public override onlyAdmin returns (bytes32) {
     require(executionTime >= add256(block.timestamp, _delay), 'EXECUTION_TIME_UNDERESTIMATED');
 
-    bytes32 hashId = keccak256(abi.encode(payload, executionTime));
-    _queuedTransactions[hashId] = true;
+    bytes32 actionHash = keccak256(
+      abi.encode(target, value, signature, data, executionTime, withDelegatecall)
+    );
+    _queuedTransactions[actionHash] = true;
 
-    return hashId;
+    return actionHash;
   }
 
-  function cancelTransaction(address payload, uint256 executionTime) public override onlyAdmin {
-    bytes32 hashId = keccak256(abi.encode(payload, executionTime));
-    _queuedTransactions[hashId] = false;
+  function cancelTransaction(
+    address target,
+    uint256 value,
+    string memory signature,
+    bytes memory data,
+    uint256 executionTime,
+    bool withDelegatecall
+  ) public override onlyAdmin {
+    bytes32 actionHash = keccak256(
+      abi.encode(target, value, signature, data, executionTime, withDelegatecall)
+    );
+    _queuedTransactions[actionHash] = false;
   }
 
-  function executeTransaction(address payload, uint256 executionTime)
-    public
-    payable
-    override
-    onlyAdmin
-    returns (bytes memory)
-  {
-    bytes32 hashId = keccak256(abi.encode(payload, executionTime));
-    require(_queuedTransactions[hashId], 'PAYLOAD_IS_NOT_QUEUED');
+  function executeTransaction(
+    address target,
+    uint256 value,
+    string memory signature,
+    bytes memory data,
+    uint256 executionTime,
+    bool withDelegatecall
+  ) public payable override onlyAdmin returns (bytes memory) {
+    bytes32 actionHash = keccak256(
+      abi.encode(target, value, signature, data, executionTime, withDelegatecall)
+    );
+    require(_queuedTransactions[actionHash], 'ACTION_NOT_QUEUED');
     require(block.timestamp >= executionTime, 'TIMELOCK_NOT_FINISHED');
     require(block.timestamp <= add256(executionTime, GRACE_PERIOD), 'GRACE_PERIOD_FINISHED');
 
-    _queuedTransactions[hashId] = false;
+    _queuedTransactions[actionHash] = false;
 
-    // solium-disable-next-line security/no-call-value
-    (bool success, bytes memory data) = payload.delegatecall(
-      abi.encodeWithSelector(IPayload(payload).execute.selector)
-    );
-    require(success, 'FAILED_PAYLOAD_EXECUTION');
+    bytes memory callData;
+
+    if (bytes(signature).length == 0) {
+      callData = data;
+    } else {
+      callData = abi.encodePacked(bytes4(keccak256(bytes(signature))), data);
+    }
+
+    bool success;
+    bytes memory resultData;
+    if (withDelegatecall) {
+      // solium-disable-next-line security/no-call-value
+      (success, resultData) = target.delegatecall(callData);
+    } else {
+      // solium-disable-next-line security/no-call-value
+      (success, resultData) = target.call{value: value}(callData);
+    }
+
+    require(success, 'FAILED_ACTION_EXECUTION');
 
     return data;
   }
@@ -134,7 +164,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     return _delay;
   }
 
-  function isPayloadQueued(bytes32 hashId) external view override returns (bool) {
-    return _queuedTransactions[hashId];
+  function isActionQueued(bytes32 actionHash) external view override returns (bool) {
+    return _queuedTransactions[actionHash];
   }
 }
