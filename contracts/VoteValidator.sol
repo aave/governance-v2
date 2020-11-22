@@ -2,9 +2,9 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-import {IAaveGovernanceV2} from './IAaveGovernanceV2.sol';
-import {IGovernanceStrategy} from './IGovernanceStrategy.sol';
-import {IVoteValidator} from './IVoteValidator.sol';
+import {IAaveGovernanceV2} from './interfaces/IAaveGovernanceV2.sol';
+import {IGovernanceStrategy} from './interfaces/IGovernanceStrategy.sol';
+import {IVoteValidator} from './interfaces/IVoteValidator.sol';
 import {add256, sub256, mul256, div256} from './Helpers.sol';
 
 contract VoteValidator is IVoteValidator {

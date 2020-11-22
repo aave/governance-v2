@@ -2,12 +2,12 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
+import {IVotingStrategy} from './interfaces/IVotingStrategy.sol';
+import {IExecutorWithTimelock} from './interfaces/IExecutorWithTimelock.sol';
+import {IVoteValidator} from './interfaces/IVoteValidator.sol';
+import {IGovernanceStrategy} from './interfaces/IGovernanceStrategy.sol';
+import {IAaveGovernanceV2} from './interfaces/IAaveGovernanceV2.sol';
 import {Ownable} from './Ownable.sol';
-import {IVotingStrategy} from './IVotingStrategy.sol';
-import {IExecutorWithTimelock} from './IExecutorWithTimelock.sol';
-import {IVoteValidator} from './IVoteValidator.sol';
-import {IGovernanceStrategy} from './IGovernanceStrategy.sol';
-import {IAaveGovernanceV2} from './IAaveGovernanceV2.sol';
 import {isContract, add256, sub256, getChainId} from './Helpers.sol';
 
 contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {

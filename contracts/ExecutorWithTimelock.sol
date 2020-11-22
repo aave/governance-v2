@@ -2,8 +2,8 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-import {IExecutorWithTimelock} from './IExecutorWithTimelock.sol';
-import {IAaveGovernanceV2} from './IAaveGovernanceV2.sol';
+import {IExecutorWithTimelock} from './interfaces/IExecutorWithTimelock.sol';
+import {IAaveGovernanceV2} from './interfaces/IAaveGovernanceV2.sol';
 import {add256} from './Helpers.sol';
 
 contract ExecutorWithTimelock is IExecutorWithTimelock {
