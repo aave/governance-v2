@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.7.5;
-pragma experimental ABIEncoderV2;
+pragma abicoder v2;
 
 import {Ownable} from './Ownable.sol';
 import {IVotingStrategy} from './IVotingStrategy.sol';
@@ -9,7 +9,6 @@ import {IPropositionStrategy} from './IPropositionStrategy.sol';
 import {IAaveGovernanceV2} from './IAaveGovernanceV2.sol';
 import {isContract, add256, sub256, getChainId} from './Helpers.sol';
 
-// TODO: split the storage to another contract on the inheritance's chain?
 contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   address private _governanceStrategy;
   uint256 private _votingDelay;
@@ -50,13 +49,11 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
         targets.length == calldatas.length,
       'INCONSISTENT_PARAMS_LENGTH'
     );
-    require(
-      IPropositionStrategy(_governanceStrategy).getPropositionPowerAt(
-        msg.sender,
-        block.number - 1
-      ) >= IPropositionStrategy(_governanceStrategy).getPropositionPowerNeeded(),
-      'INVALID_PROPOSITION_POWER'
-    ); // TODO replace this with just a require of calling isValidProposer(msg.sender, block.number-1) ?
+
+    IPropositionStrategy(_governanceStrategy).validateCreatorOfProposal(
+      msg.sender,
+      block.number - 1
+    );
 
     CreateVars memory vars;
 
@@ -107,12 +104,12 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
 
     Proposal storage proposal = _proposals[proposalId];
     require(
-      IPropositionStrategy(_governanceStrategy).getPropositionPowerAt(
+      !IPropositionStrategy(_governanceStrategy).isPropositionPowerEnough(
         proposal.creator,
         block.number - 1
-      ) < IPropositionStrategy(_governanceStrategy).getPropositionPowerNeeded(),
-      'CREATOR_BELOW_THRESHOLD'
-    ); // TODO maybe validate too directly on the strategy? with something like validateCancelConditions(proposal.creator, block.number-1)
+      ),
+      'CREATOR_ABOVE_THRESHOLD'
+    );
     proposal.canceled = true;
     for (uint256 i = 0; i < proposal.targets.length; i++) {
       proposal.executor.cancelTransaction(
