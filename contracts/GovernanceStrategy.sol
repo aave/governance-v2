@@ -2,18 +2,24 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-import {IPropositionStrategy} from './IPropositionStrategy.sol';
+import {IGovernanceStrategy} from './IGovernanceStrategy.sol';
 import {IERC20} from './IERC20.sol';
 import {IDelegationAwareToken} from './IDelegationAwareToken.sol';
 import {mul256, div256} from './Helpers.sol';
 
-contract PropositionStrategy is IPropositionStrategy {
+contract GovernanceStrategy is IGovernanceStrategy {
   address public immutable PROPOSITION_TOKEN;
+  address public immutable VOTING_TOKEN;
   uint256 public immutable PROPOSITION_THRESHOLD; // With ONE_HUNDRED_WITH_PRECISION being 100%
   uint256 public constant ONE_HUNDRED_WITH_PRECISION = 10000;
 
-  constructor(address propositionToken, uint256 propositionThreshold) {
+  constructor(
+    address propositionToken,
+    address votingToken,
+    uint256 propositionThreshold
+  ) {
     PROPOSITION_TOKEN = propositionToken;
+    VOTING_TOKEN = votingToken;
     PROPOSITION_THRESHOLD = propositionThreshold;
   }
 
@@ -38,7 +44,7 @@ contract PropositionStrategy is IPropositionStrategy {
     returns (uint256)
   {
     return
-      IDelegationAwareToken(PROPOSITION_TOKEN).getDelegatedAtBlock(
+      IDelegationAwareToken(PROPOSITION_TOKEN).getPowerAtBlock(
         user,
         blockNumber,
         IDelegationAwareToken.DelegationType.PROPOSITION_POWER
@@ -60,5 +66,23 @@ contract PropositionStrategy is IPropositionStrategy {
 
   function getTotalPropositionSupplyAt(uint256 blockNumber) public view override returns (uint256) {
     return IERC20(PROPOSITION_TOKEN).totalSupplyAt(blockNumber);
+  }
+
+  function getTotalVotingSupplyAt(uint256 blockNumber) public view override returns (uint256) {
+    return getTotalPropositionSupplyAt(blockNumber);
+  }
+
+  function getVotingPowerAt(address user, uint256 blockNumber)
+    public
+    view
+    override
+    returns (uint256)
+  {
+    return
+      IDelegationAwareToken(VOTING_TOKEN).getPowerAtBlock(
+        user,
+        blockNumber,
+        IDelegationAwareToken.DelegationType.VOTING_POWER
+      );
   }
 }

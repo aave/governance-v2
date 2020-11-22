@@ -3,15 +3,13 @@ pragma solidity 0.7.5;
 pragma abicoder v2;
 
 import {IExecutorWithTimelock} from './IExecutorWithTimelock.sol';
+import {IAaveGovernanceV2} from './IAaveGovernanceV2.sol';
 import {add256} from './Helpers.sol';
 
-// TODO add events
 contract ExecutorWithTimelock is IExecutorWithTimelock {
   uint256 public constant override GRACE_PERIOD = 14 days;
   uint256 public constant override MINIMUM_DELAY = 1 days;
   uint256 public constant override MAXIMUM_DELAY = 30 days;
-  uint256 public constant override VOTING_DURATION = 14 days;
-  uint256 public constant override VOTE_DIFFERENTIAL = 500; // 5%
 
   address private _admin;
   address private _pendingAdmin;
@@ -19,10 +17,47 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
 
   mapping(bytes32 => bool) private _queuedTransactions;
 
+  event NewPendingAdmin(address newPendingAdmin);
+  event NewAdmin(address newAdmin);
+  event NewDelay(uint256 delay);
+  event QueuedAction(
+    bytes32 actionHash,
+    address indexed target,
+    uint256 value,
+    string signature,
+    bytes data,
+    uint256 executionTime,
+    bool withDelegatecall
+  );
+
+  event CancelledAction(
+    bytes32 actionHash,
+    address indexed target,
+    uint256 value,
+    string signature,
+    bytes data,
+    uint256 executionTime,
+    bool withDelegatecall
+  );
+
+  event ExecutedAction(
+    bytes32 actionHash,
+    address indexed target,
+    uint256 value,
+    string signature,
+    bytes data,
+    uint256 executionTime,
+    bool withDelegatecall,
+    bytes resultData
+  );
+
   constructor(address admin, uint256 delay) {
     _validateDelay(delay);
-    _admin = admin;
     _delay = delay;
+    _admin = admin;
+
+    emit NewDelay(delay);
+    emit NewAdmin(admin);
   }
 
   modifier onlyAdmin() {
@@ -43,15 +78,21 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
   function setDelay(uint256 delay) public onlyTimelock {
     _validateDelay(delay);
     _delay = delay;
+
+    emit NewDelay(delay);
   }
 
   function acceptAdmin() public onlyPendingAdmin {
     _admin = msg.sender;
     _pendingAdmin = address(0);
+
+    emit NewAdmin(msg.sender);
   }
 
-  function setPendingAdmin(address pendingAdmin) public onlyTimelock {
-    _pendingAdmin = pendingAdmin;
+  function setPendingAdmin(address newPendingAdmin) public onlyTimelock {
+    _pendingAdmin = newPendingAdmin;
+
+    emit NewPendingAdmin(newPendingAdmin);
   }
 
   function queueTransaction(
@@ -69,6 +110,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     );
     _queuedTransactions[actionHash] = true;
 
+    emit QueuedAction(actionHash, target, value, signature, data, executionTime, withDelegatecall);
     return actionHash;
   }
 
@@ -84,6 +126,16 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
       abi.encode(target, value, signature, data, executionTime, withDelegatecall)
     );
     _queuedTransactions[actionHash] = false;
+
+    emit CancelledAction(
+      actionHash,
+      target,
+      value,
+      signature,
+      data,
+      executionTime,
+      withDelegatecall
+    );
   }
 
   function executeTransaction(
@@ -123,33 +175,18 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
 
     require(success, 'FAILED_ACTION_EXECUTION');
 
+    emit ExecutedAction(
+      actionHash,
+      target,
+      value,
+      signature,
+      data,
+      executionTime,
+      withDelegatecall,
+      resultData
+    );
+
     return data;
-  }
-
-  function _validateDelay(uint256 delay) internal pure {
-    require(delay >= MINIMUM_DELAY, 'DELAY_SHORTER_THAN_MINIMUM');
-    require(delay <= MAXIMUM_DELAY, 'DELAY_LONGER_THAN_MAXIMUM');
-  }
-
-  function getQuorum() external view override returns (uint256) {
-    return 300; // TODO replace, now 3%
-  }
-
-  function getForVotesNeededForQuorum() external view override returns (uint256) {
-    return 0; // TODO
-  }
-
-  function getVotesDifferential() external view override returns (uint256) {
-    return 0; // TODO
-  }
-
-  function getForVotesNeededWithDifferential(uint256 against)
-    external
-    view
-    override
-    returns (uint256)
-  {
-    return 0; // TODO
   }
 
   function getAdmin() external view override returns (address) {
@@ -167,4 +204,22 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
   function isActionQueued(bytes32 actionHash) external view override returns (bool) {
     return _queuedTransactions[actionHash];
   }
+
+  function isProposalOverGracePeriod(IAaveGovernanceV2 governance, uint256 proposalId)
+    external
+    view
+    override
+    returns (bool)
+  {
+    IAaveGovernanceV2.ProposalWithoutVotes memory proposal = governance.getProposalById(proposalId);
+
+    return (block.timestamp > add256(proposal.executionTime, GRACE_PERIOD));
+  }
+
+  function _validateDelay(uint256 delay) internal pure {
+    require(delay >= MINIMUM_DELAY, 'DELAY_SHORTER_THAN_MINIMUM');
+    require(delay <= MAXIMUM_DELAY, 'DELAY_LONGER_THAN_MAXIMUM');
+  }
+
+  receive() external payable {}
 }

@@ -2,7 +2,7 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-interface IPropositionStrategy {
+interface IGovernanceStrategy {
   function validateCreatorOfProposal(address user, uint256 blockNumber) external view;
 
   function isPropositionPowerEnough(address user, uint256 blockNumber) external view returns (bool);
@@ -12,4 +12,8 @@ interface IPropositionStrategy {
   function getMinimumPropositionPowerNeeded(uint256 blockNumber) external view returns (uint256);
 
   function getTotalPropositionSupplyAt(uint256 blockNumber) external view returns (uint256);
+
+  function getTotalVotingSupplyAt(uint256 blockNumber) external view returns (uint256);
+
+  function getVotingPowerAt(address user, uint256 blockNumber) external view returns (uint256);
 }

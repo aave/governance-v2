@@ -5,16 +5,19 @@ pragma abicoder v2;
 import {Ownable} from './Ownable.sol';
 import {IVotingStrategy} from './IVotingStrategy.sol';
 import {IExecutorWithTimelock} from './IExecutorWithTimelock.sol';
-import {IPropositionStrategy} from './IPropositionStrategy.sol';
+import {IVoteValidator} from './IVoteValidator.sol';
+import {IGovernanceStrategy} from './IGovernanceStrategy.sol';
 import {IAaveGovernanceV2} from './IAaveGovernanceV2.sol';
 import {isContract, add256, sub256, getChainId} from './Helpers.sol';
 
 contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
+  /// @dev With logic for validation of proposition and voting
   address private _governanceStrategy;
   uint256 private _votingDelay;
 
   uint256 private _proposalsCount;
   mapping(uint256 => Proposal) private _proposals;
+  mapping(address => bool) private _whitelistedExecutors;
 
   address private _guardian;
 
@@ -32,11 +35,14 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   constructor(
     address governanceStrategy,
     uint256 votingDelay,
-    address guardian
+    address guardian,
+    address[] memory executors
   ) {
     _setGovernanceStrategy(governanceStrategy);
     _setVotingDelay(votingDelay);
     _guardian = guardian;
+
+    whitelistExecutors(executors);
   }
 
   struct CreateVars {
@@ -61,8 +67,9 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
         targets.length == calldatas.length,
       'INCONSISTENT_PARAMS_LENGTH'
     );
+    require(_whitelistedExecutors[address(executor)], 'EXECUTOR_NOT_WHITELISTED');
 
-    IPropositionStrategy(_governanceStrategy).validateCreatorOfProposal(
+    IGovernanceStrategy(_governanceStrategy).validateCreatorOfProposal(
       msg.sender,
       block.number - 1
     );
@@ -70,7 +77,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     CreateVars memory vars;
 
     vars.startBlock = add256(block.number, _votingDelay);
-    vars.endBlock = add256(vars.startBlock, IExecutorWithTimelock(executor).VOTING_DURATION());
+    vars.endBlock = add256(vars.startBlock, IVoteValidator(address(executor)).VOTING_DURATION());
 
     vars.previousProposalsCount = _proposalsCount;
 
@@ -117,7 +124,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
 
     Proposal storage proposal = _proposals[proposalId];
     require(
-      !IPropositionStrategy(_governanceStrategy).isPropositionPowerEnough(
+      !IGovernanceStrategy(_governanceStrategy).isPropositionPowerEnough(
         proposal.creator,
         block.number - 1
       ),
@@ -206,6 +213,18 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     _setVotingDelay(votingDelay);
   }
 
+  function whitelistExecutors(address[] memory executors) public override onlyOwner {
+    for (uint256 i = 0; i < executors.length; i++) {
+      _whitelistExecutor(executors[i]);
+    }
+  }
+
+  function blacklistExecutors(address[] memory executors) public override onlyOwner {
+    for (uint256 i = 0; i < executors.length; i++) {
+      _blacklistExecutor(executors[i]);
+    }
+  }
+
   function __abdicate() external override onlyGuardian {
     _guardian = address(0);
   }
@@ -216,6 +235,10 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
 
   function getVotingDelay() external view override returns (uint256) {
     return _votingDelay;
+  }
+
+  function isExecutorWhitelisted(address executor) external view override returns (bool) {
+    return _whitelistedExecutors[executor];
   }
 
   function getGuardian() external view override returns (address) {
@@ -274,17 +297,13 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
       return ProposalState.Pending;
     } else if (block.number <= proposal.endBlock) {
       return ProposalState.Active;
-    } else if (
-      proposal.forVotes <
-      proposal.executor.getForVotesNeededWithDifferential(proposal.againstVotes) ||
-      proposal.forVotes < proposal.executor.getForVotesNeededForQuorum()
-    ) {
+    } else if (!IVoteValidator(address(proposal.executor)).isProposalPassed(this, proposalId)) {
       return ProposalState.Failed;
     } else if (proposal.executionTime == 0) {
       return ProposalState.Succeeded;
     } else if (proposal.executed) {
       return ProposalState.Executed;
-    } else if (block.timestamp > add256(proposal.executionTime, proposal.executor.GRACE_PERIOD())) {
+    } else if (proposal.executor.isProposalOverGracePeriod(this, proposalId)) {
       return ProposalState.Expired;
     } else {
       return ProposalState.Queued;
@@ -338,7 +357,13 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   }
 
   function _setGovernanceStrategy(address governanceStrategy) internal {
-    require(isContract(governanceStrategy), 'STRATEGY_NEEDS_TO_BE_CONTRACT'); // TODO maybe improve this by requiring certain needed functions there?
+    require(
+      IGovernanceStrategy(governanceStrategy).getTotalPropositionSupplyAt(block.number) > 0 &&
+        IGovernanceStrategy(governanceStrategy).getTotalVotingSupplyAt(block.number) > 0 &&
+        IGovernanceStrategy(governanceStrategy).getMinimumPropositionPowerNeeded(block.number) > 0,
+      'INVALID_STRATEGY'
+    );
+
     _governanceStrategy = governanceStrategy;
 
     emit GovernanceStrategyChanged(governanceStrategy, msg.sender);
@@ -349,5 +374,15 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     _votingDelay = votingDelay;
 
     emit VotingDelayChanged(votingDelay, msg.sender);
+  }
+
+  function _whitelistExecutor(address executor) internal {
+    _whitelistedExecutors[executor] = true;
+    emit ExecutorWhitelisted(executor);
+  }
+
+  function _blacklistExecutor(address executor) internal {
+    _whitelistedExecutors[executor] = false;
+    emit ExecutorBlacklisted(executor);
   }
 }

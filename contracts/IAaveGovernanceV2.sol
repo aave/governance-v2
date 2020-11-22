@@ -80,6 +80,10 @@ interface IAaveGovernanceV2 {
 
   event VotingDelayChanged(uint256 newVotingDelay, address indexed initiatorChange);
 
+  event ExecutorWhitelisted(address executor);
+
+  event ExecutorBlacklisted(address executor);
+
   function create(
     IExecutorWithTimelock executor,
     address[] memory targets,
@@ -110,11 +114,17 @@ interface IAaveGovernanceV2 {
 
   function setVotingDelay(uint256 votingDelay) external;
 
+  function whitelistExecutors(address[] memory executors) external;
+
+  function blacklistExecutors(address[] memory executors) external;
+
   function __abdicate() external;
 
   function getGovernanceStrategy() external view returns (address);
 
   function getVotingDelay() external view returns (uint256);
+
+  function isExecutorWhitelisted(address executor) external view returns (bool);
 
   function getGuardian() external view returns (address);
 
