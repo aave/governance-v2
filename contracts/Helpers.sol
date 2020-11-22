@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
+pragma solidity 0.7.5;
 pragma experimental ABIEncoderV2;
 
 function add256(uint256 a, uint256 b) pure returns (uint256) {

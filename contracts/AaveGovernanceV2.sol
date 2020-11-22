@@ -1,46 +1,16 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
+pragma solidity 0.7.5;
 pragma experimental ABIEncoderV2;
 
 import {Ownable} from './Ownable.sol';
 import {IVotingStrategy} from './IVotingStrategy.sol';
-import {IPropositionStrategy} from './IPropositionStrategy.sol';
 import {IExecutorWithTimelock} from './IExecutorWithTimelock.sol';
+import {IPropositionStrategy} from './IPropositionStrategy.sol';
+import {IAaveGovernanceV2} from './IAaveGovernanceV2.sol';
 import {isContract, add256, sub256, getChainId} from './Helpers.sol';
 
-// TODO review if it's important to validate that the creator doesn't have other proposals in parallel (on creation) If so, needed to recover the
-//     mapping (address => uint) public latestProposalIds;
-// TODO add getters
-// TODO add events
-contract AaveGovernanceV2 is Ownable {
-  struct Vote {
-    bool support;
-    uint248 votingPower;
-  }
-
-  struct Proposal {
-    uint256 id;
-    address creator;
-    IExecutorWithTimelock executor;
-    address[] targets;
-    uint256[] values;
-    string[] signatures;
-    bytes[] calldatas;
-    bool[] withDelegatecalls;
-    uint256 startBlock;
-    uint256 endBlock;
-    uint256 executionTime;
-    uint256 forVotes;
-    uint256 againstVotes;
-    bool executed;
-    bool canceled;
-    address strategy;
-    bytes32 ipfsHash;
-    mapping(address => Vote) votes;
-  }
-
-  enum ProposalState {Pending, Canceled, Active, Failed, Succeeded, Queued, Expired, Executed}
-
+// TODO: split the storage to another contract on the inheritance's chain?
+contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   address private _governanceStrategy;
   uint256 private _votingDelay;
 
@@ -50,7 +20,7 @@ contract AaveGovernanceV2 is Ownable {
   bytes32 public constant DOMAIN_TYPEHASH = keccak256(
     'EIP712Domain(string name,uint256 chainId,address verifyingContract)'
   );
-  bytes32 public constant VOTE_EMITTED_TYPEHASH = keccak256('VoteEmitted(uint256 id,bool option)');
+  bytes32 public constant VOTE_EMITTED_TYPEHASH = keccak256('VoteEmitted(uint256 id,bool support)');
   string public constant NAME = 'Aave Governance v2';
 
   constructor(address governanceStrategy, uint256 votingDelay) {
@@ -72,7 +42,7 @@ contract AaveGovernanceV2 is Ownable {
     bytes[] memory calldatas,
     bool[] memory withDelegatecalls,
     bytes32 ipfsHash
-  ) public returns (uint256) {
+  ) external override returns (uint256) {
     require(targets.length != 0, 'INVALID_EMPTY_TARGETS');
     require(
       targets.length == values.length &&
@@ -86,7 +56,7 @@ contract AaveGovernanceV2 is Ownable {
         block.number - 1
       ) >= IPropositionStrategy(_governanceStrategy).getPropositionPowerNeeded(),
       'INVALID_PROPOSITION_POWER'
-    );
+    ); // TODO replace this with just a require of calling isValidProposer(msg.sender, block.number-1) ?
 
     CreateVars memory vars;
 
@@ -110,10 +80,25 @@ contract AaveGovernanceV2 is Ownable {
     newProposal.ipfsHash = ipfsHash;
     _proposalsCount++;
 
+    emit ProposalCreated(
+      vars.previousProposalsCount,
+      msg.sender,
+      executor,
+      targets,
+      values,
+      signatures,
+      calldatas,
+      withDelegatecalls,
+      vars.startBlock,
+      vars.endBlock,
+      _governanceStrategy,
+      ipfsHash
+    );
+
     return newProposal.id;
   }
 
-  function cancel(uint256 proposalId) public {
+  function cancel(uint256 proposalId) external override {
     ProposalState state = getProposalState(proposalId);
     require(
       state != ProposalState.Executed && state != ProposalState.Canceled,
@@ -127,7 +112,7 @@ contract AaveGovernanceV2 is Ownable {
         block.number - 1
       ) < IPropositionStrategy(_governanceStrategy).getPropositionPowerNeeded(),
       'CREATOR_BELOW_THRESHOLD'
-    );
+    ); // TODO maybe validate too directly on the strategy? with something like validateCancelConditions(proposal.creator, block.number-1)
     proposal.canceled = true;
     for (uint256 i = 0; i < proposal.targets.length; i++) {
       proposal.executor.cancelTransaction(
@@ -139,9 +124,11 @@ contract AaveGovernanceV2 is Ownable {
         proposal.withDelegatecalls[i]
       );
     }
+
+    emit ProposalCanceled(proposalId);
   }
 
-  function queue(uint256 proposalId) public {
+  function queue(uint256 proposalId) external override {
     require(getProposalState(proposalId) == ProposalState.Succeeded, 'INVALID_STATE_FOR_QUEUE');
     Proposal storage proposal = _proposals[proposalId];
     uint256 executionTime = add256(block.timestamp, proposal.executor.getDelay());
@@ -157,6 +144,133 @@ contract AaveGovernanceV2 is Ownable {
       );
     }
     proposal.executionTime = executionTime;
+
+    emit ProposalQueued(proposalId, executionTime, msg.sender);
+  }
+
+  function execute(uint256 proposalId) external payable override {
+    require(getProposalState(proposalId) == ProposalState.Queued, 'ONLY_QUEUED_PROPOSALS');
+    Proposal storage proposal = _proposals[proposalId];
+    proposal.executed = true;
+    for (uint256 i = 0; i < proposal.targets.length; i++) {
+      proposal.executor.executeTransaction{value: proposal.values[i]}(
+        proposal.targets[i],
+        proposal.values[i],
+        proposal.signatures[i],
+        proposal.calldatas[i],
+        proposal.executionTime,
+        proposal.withDelegatecalls[i]
+      );
+    }
+    emit ProposalExecuted(proposalId, msg.sender);
+  }
+
+  function submitVote(uint256 proposalId, bool support) external override {
+    return _submitVote(msg.sender, proposalId, support);
+  }
+
+  function submitVoteBySignature(
+    uint256 proposalId,
+    bool support,
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+  ) external override {
+    bytes32 digest = keccak256(
+      abi.encodePacked(
+        '\x19\x01',
+        keccak256(abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(NAME)), getChainId(), address(this))),
+        keccak256(abi.encode(VOTE_EMITTED_TYPEHASH, proposalId, support))
+      )
+    );
+    address signer = ecrecover(digest, v, r, s);
+    require(signer != address(0), 'INVALID_SIGNATURE');
+    return _submitVote(signer, proposalId, support);
+  }
+
+  function setGovernanceStrategy(address governanceStrategy) external override onlyOwner {
+    _setGovernanceStrategy(governanceStrategy);
+  }
+
+  function setVotingDelay(uint256 votingDelay) external override onlyOwner {
+    _setVotingDelay(votingDelay);
+  }
+
+  function getGovernanceStrategy() external view override returns (address) {
+    return _governanceStrategy;
+  }
+
+  function getVotingDelay() external view override returns (uint256) {
+    return _votingDelay;
+  }
+
+  function getProposalsCount() external view override returns (uint256) {
+    return _proposalsCount;
+  }
+
+  function getProposalById(uint256 proposalId)
+    external
+    view
+    override
+    returns (ProposalWithoutVotes memory)
+  {
+    Proposal storage proposal = _proposals[proposalId];
+    ProposalWithoutVotes memory proposalWithoutVotes = ProposalWithoutVotes({
+      id: proposal.id,
+      creator: proposal.creator,
+      executor: proposal.executor,
+      targets: proposal.targets,
+      values: proposal.values,
+      signatures: proposal.signatures,
+      calldatas: proposal.calldatas,
+      withDelegatecalls: proposal.withDelegatecalls,
+      startBlock: proposal.startBlock,
+      endBlock: proposal.endBlock,
+      executionTime: proposal.executionTime,
+      forVotes: proposal.forVotes,
+      againstVotes: proposal.againstVotes,
+      executed: proposal.executed,
+      canceled: proposal.canceled,
+      strategy: proposal.strategy,
+      ipfsHash: proposal.ipfsHash
+    });
+
+    return proposalWithoutVotes;
+  }
+
+  function getVoteOnProposal(uint256 proposalId, address voter)
+    external
+    view
+    override
+    returns (Vote memory)
+  {
+    return _proposals[proposalId].votes[voter];
+  }
+
+  function getProposalState(uint256 proposalId) public view override returns (ProposalState) {
+    require(_proposalsCount >= proposalId, 'INVALID_PROPOSAL_ID');
+    Proposal storage proposal = _proposals[proposalId];
+    if (proposal.canceled) {
+      return ProposalState.Canceled;
+    } else if (block.number <= proposal.startBlock) {
+      return ProposalState.Pending;
+    } else if (block.number <= proposal.endBlock) {
+      return ProposalState.Active;
+    } else if (
+      proposal.forVotes <
+      proposal.executor.getForVotesNeededWithDifferential(proposal.againstVotes) ||
+      proposal.forVotes < proposal.executor.getForVotesNeededForQuorum()
+    ) {
+      return ProposalState.Failed;
+    } else if (proposal.executionTime == 0) {
+      return ProposalState.Succeeded;
+    } else if (proposal.executed) {
+      return ProposalState.Executed;
+    } else if (block.timestamp > add256(proposal.executionTime, proposal.executor.GRACE_PERIOD())) {
+      return ProposalState.Expired;
+    } else {
+      return ProposalState.Queued;
+    }
   }
 
   function _queueOrRevert(
@@ -175,45 +289,6 @@ contract AaveGovernanceV2 is Ownable {
       'DUPLICATED_ACTION'
     );
     executor.queueTransaction(target, value, signature, callData, executionTime, withDelegatecall);
-  }
-
-  function execute(uint256 proposalId) public payable {
-    require(getProposalState(proposalId) == ProposalState.Queued, 'ONLY_QUEUED_PROPOSALS');
-    Proposal storage proposal = _proposals[proposalId];
-    proposal.executed = true;
-    for (uint256 i = 0; i < proposal.targets.length; i++) {
-      proposal.executor.executeTransaction{value: proposal.values[i]}(
-        proposal.targets[i],
-        proposal.values[i],
-        proposal.signatures[i],
-        proposal.calldatas[i],
-        proposal.executionTime,
-        proposal.withDelegatecalls[i]
-      );
-    }
-  }
-
-  function submitVote(uint256 proposalId, bool support) public {
-    return _submitVote(msg.sender, proposalId, support);
-  }
-
-  function submitVoteBySignature(
-    uint256 proposalId,
-    bool support,
-    uint8 v,
-    bytes32 r,
-    bytes32 s
-  ) public {
-    bytes32 digest = keccak256(
-      abi.encodePacked(
-        '\x19\x01',
-        keccak256(abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(NAME)), getChainId(), address(this))),
-        keccak256(abi.encode(VOTE_EMITTED_TYPEHASH, proposalId, support))
-      )
-    );
-    address signer = ecrecover(digest, v, r, s);
-    require(signer != address(0), 'INVALID_SIGNATURE');
-    return _submitVote(signer, proposalId, support);
   }
 
   function _submitVote(
@@ -240,51 +315,21 @@ contract AaveGovernanceV2 is Ownable {
 
     vote.support = support;
     vote.votingPower = uint248(votingPower);
-  }
 
-  function setGovernanceStrategy(address governanceStrategy) public onlyOwner {
-    _setGovernanceStrategy(governanceStrategy);
+    emit VoteEmitted(proposalId, voter, support, votingPower);
   }
 
   function _setGovernanceStrategy(address governanceStrategy) internal {
-    require(isContract(governanceStrategy), 'STRATEGY_NEEDS_TO_BE_CONTRACT');
+    require(isContract(governanceStrategy), 'STRATEGY_NEEDS_TO_BE_CONTRACT'); // TODO maybe improve this by requiring certain needed functions there?
     _governanceStrategy = governanceStrategy;
-  }
 
-  function setVotingDelay(uint256 votingDelay) public onlyOwner {
-    _setVotingDelay(votingDelay);
+    emit GovernanceStrategyChanged(governanceStrategy, msg.sender);
   }
 
   function _setVotingDelay(uint256 votingDelay) internal {
     require(votingDelay > 0, 'INVALID_ZERO_DELAY');
     _votingDelay = votingDelay;
-  }
 
-  function getProposalState(uint256 proposalId) public view returns (ProposalState) {
-    require(_proposalsCount >= proposalId, 'INVALID_PROPOSAL_ID');
-    Proposal storage proposal = _proposals[proposalId];
-    if (proposal.canceled) {
-      return ProposalState.Canceled;
-    } else if (block.number <= proposal.startBlock) {
-      return ProposalState.Pending;
-    } else if (block.number <= proposal.endBlock) {
-      return ProposalState.Active;
-    } else if (
-      proposal.forVotes <=
-      proposal.executor.getForVotesNeededWithDifferential(proposal.againstVotes) ||
-      proposal.forVotes < proposal.executor.getForVotesNeededForQuorum()
-    ) {
-      return ProposalState.Failed;
-    } else if (proposal.executionTime == 0) {
-      return ProposalState.Succeeded;
-    } else if (proposal.executed) {
-      return ProposalState.Executed;
-    } else if (
-      block.timestamp >= add256(proposal.executionTime, proposal.executor.GRACE_PERIOD())
-    ) {
-      return ProposalState.Expired;
-    } else {
-      return ProposalState.Queued;
-    }
+    emit VotingDelayChanged(votingDelay, msg.sender);
   }
 }
