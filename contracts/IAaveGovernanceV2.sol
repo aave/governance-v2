@@ -110,9 +110,13 @@ interface IAaveGovernanceV2 {
 
   function setVotingDelay(uint256 votingDelay) external;
 
+  function __abdicate() external;
+
   function getGovernanceStrategy() external view returns (address);
 
   function getVotingDelay() external view returns (uint256);
+
+  function getGuardian() external view returns (address);
 
   function getProposalsCount() external view returns (uint256);
 

@@ -16,15 +16,27 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   uint256 private _proposalsCount;
   mapping(uint256 => Proposal) private _proposals;
 
+  address private _guardian;
+
   bytes32 public constant DOMAIN_TYPEHASH = keccak256(
     'EIP712Domain(string name,uint256 chainId,address verifyingContract)'
   );
   bytes32 public constant VOTE_EMITTED_TYPEHASH = keccak256('VoteEmitted(uint256 id,bool support)');
   string public constant NAME = 'Aave Governance v2';
 
-  constructor(address governanceStrategy, uint256 votingDelay) {
+  modifier onlyGuardian() {
+    require(msg.sender == _guardian, 'ONLY_BY_GUARDIAN');
+    _;
+  }
+
+  constructor(
+    address governanceStrategy,
+    uint256 votingDelay,
+    address guardian
+  ) {
     _setGovernanceStrategy(governanceStrategy);
     _setVotingDelay(votingDelay);
+    _guardian = guardian;
   }
 
   struct CreateVars {
@@ -98,7 +110,8 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   function cancel(uint256 proposalId) external override {
     ProposalState state = getProposalState(proposalId);
     require(
-      state != ProposalState.Executed && state != ProposalState.Canceled,
+      msg.sender == _guardian ||
+        (state != ProposalState.Executed && state != ProposalState.Canceled),
       'ONLY_BEFORE_EXECUTED'
     );
 
@@ -193,12 +206,20 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     _setVotingDelay(votingDelay);
   }
 
+  function __abdicate() external override onlyGuardian {
+    _guardian = address(0);
+  }
+
   function getGovernanceStrategy() external view override returns (address) {
     return _governanceStrategy;
   }
 
   function getVotingDelay() external view override returns (uint256) {
     return _votingDelay;
+  }
+
+  function getGuardian() external view override returns (address) {
+    return _guardian;
   }
 
   function getProposalsCount() external view override returns (uint256) {
