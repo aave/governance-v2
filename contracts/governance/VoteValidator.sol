@@ -2,10 +2,10 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-import {IAaveGovernanceV2} from './interfaces/IAaveGovernanceV2.sol';
-import {IGovernanceStrategy} from './interfaces/IGovernanceStrategy.sol';
-import {IVoteValidator} from './interfaces/IVoteValidator.sol';
-import {add256, sub256, mul256, div256} from './Helpers.sol';
+import {IAaveGovernanceV2} from '../interfaces/IAaveGovernanceV2.sol';
+import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
+import {IVoteValidator} from '../interfaces/IVoteValidator.sol';
+import {add256, sub256, mul256, div256} from '../misc/Helpers.sol';
 
 contract VoteValidator is IVoteValidator {
   uint256 public constant override VOTING_DURATION = 86400; // Blocks in 14 days
@@ -15,8 +15,8 @@ contract VoteValidator is IVoteValidator {
 
   function isProposalPassed(IAaveGovernanceV2 governance, uint256 proposalId)
     external
-    view
     override
+    view
     returns (bool)
   {
     return (isQuorumValid(governance, proposalId) &&
@@ -25,8 +25,8 @@ contract VoteValidator is IVoteValidator {
 
   function getMinimumVotingPowerNeeded(uint256 votingSupply)
     public
-    pure
     override
+    pure
     returns (uint256)
   {
     return div256(mul256(votingSupply, MINIMUM_QUORUM), ONE_HUNDRED_WITH_PRECISION);
@@ -34,8 +34,8 @@ contract VoteValidator is IVoteValidator {
 
   function isQuorumValid(IAaveGovernanceV2 governance, uint256 proposalId)
     public
-    view
     override
+    view
     returns (bool)
   {
     IAaveGovernanceV2.ProposalWithoutVotes memory proposal = governance.getProposalById(proposalId);
@@ -48,8 +48,8 @@ contract VoteValidator is IVoteValidator {
 
   function isVoteDifferentialValid(IAaveGovernanceV2 governance, uint256 proposalId)
     public
-    view
     override
+    view
     returns (bool)
   {
     IAaveGovernanceV2.ProposalWithoutVotes memory proposal = governance.getProposalById(proposalId);

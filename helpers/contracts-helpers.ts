@@ -63,10 +63,11 @@ export const withSaveAndVerify = async <ContractType extends Contract>(
   instance: ContractType,
   id: string,
   args: (string | string[])[],
-  verify?: boolean
+  verify?: boolean,
+  customId?: string
 ): Promise<ContractType> => {
   await waitForTx(instance.deployTransaction);
-  await registerContractInJsonDb(id, instance);
+  await registerContractInJsonDb(customId || id, instance);
   if (verify) {
     await verifyContract(id, instance.address, args);
   }

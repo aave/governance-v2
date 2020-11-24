@@ -6,11 +6,12 @@
     "run-env": "npm i && tail -f /dev/null",
     "hardhat": "hardhat",
     "compile": "SKIP_LOAD=true hardhat compile",
-    "test": "SKIP_LOAD=true TS_NODE_TRANSPILE_ONLY=1 hardhat test",
+    "test": "TS_NODE_TRANSPILE_ONLY=1 hardhat test",
     "coverage": "buidler compile --force && buidler coverage --network coverage",
     "dev:prettier": "prettier --write .",
     "ci:test": "npm run compile && npm run test",
-    "ci:clean": "rm -rf ./artifacts ./cache ./types"
+    "ci:clean": "rm -rf ./artifacts ./cache ./types",
+    "migrate:dev": "hardhat migrate:dev"
   },
   "devDependencies": {
     "@nomiclabs/buidler": "^1.4.7",
@@ -51,14 +52,14 @@
     "prettier-plugin-solidity": "^1.0.0-alpha.53",
     "pretty-quick": "^2.0.1",
     "solidity-coverage": "0.7.10",
+    "tmp-promise": "^3.0.2",
     "ts-generator": "0.0.8",
     "ts-node": "^8.10.2",
     "tslint": "^6.1.2",
     "tslint-config-prettier": "^1.18.0",
     "tslint-plugin-prettier": "^2.3.0",
     "typechain": "2.0.0",
-    "typescript": "^3.9.3",
-    "tmp-promise": "^3.0.2"
+    "typescript": "^3.9.3"
   },
   "husky": {
     "hooks": {
@@ -80,5 +81,8 @@
       "email": "andrey@aave.com"
     }
   ],
-  "license": "AGPLv3"
+  "license": "AGPLv3",
+  "dependencies": {
+    "aave-token": "file:.yalc/aave-token"
+  }
 }

@@ -20,6 +20,14 @@ export enum AavePools {
 
 export enum eContractid {
   AaveGovernanceV2 = 'AaveGovernanceV2',
+  GovernanceStrategy = 'GovernanceStrategy',
+  Executor = 'Executor',
+  InitializableAdminUpgradeabilityProxy = 'InitializableAdminUpgradeabilityProxy',
+  AaveTokenV2Mock = 'AaveTokenV2Mock',
+  AaveTokenV2MockImpl = 'AaveTokenV2MockImpl',
+  AaveTokenV1MockImpl = 'AaveTokenV1MockImpl',
+  AaveTokenV2 = 'AaveTokenV2',
+  AaveTokenV1Mock = 'AaveTokenV1Mock',
 }
 
 export type tEthereumAddress = string;

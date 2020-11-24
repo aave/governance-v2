@@ -1,38 +1,21 @@
 import {evmRevert, evmSnapshot, DRE} from '../../helpers/misc-utils';
 import {Signer} from 'ethers';
-import {
-  getLendingPool,
-  getLendingPoolAddressesProvider,
-  getAaveProtocolTestHelpers,
-  getAToken,
-  getMintableErc20,
-  getLendingPoolConfiguratorProxy,
-  getPriceOracle,
-  getLendingPoolAddressesProviderRegistry,
-  getWETHMocked,
-  getWETHGateway,
-} from '../../helpers/contracts-getters';
-import {tEthereumAddress} from '../../helpers/types';
-import {LendingPool} from '../../types/LendingPool';
-import {AaveProtocolTestHelpers} from '../../types/AaveProtocolTestHelpers';
-import {MintableErc20 as MintableERC20} from '../../types/MintableErc20';
-import {AToken} from '../../types/AToken';
-import {LendingPoolConfigurator} from '../../types/LendingPoolConfigurator';
-
 import chai from 'chai';
 // @ts-ignore
-import bignumberChai from 'chai-bignumber';
-import {almostEqual} from './almost-equal';
-import {PriceOracle} from '../../types/PriceOracle';
-import {LendingPoolAddressesProvider} from '../../types/LendingPoolAddressesProvider';
-import {LendingPoolAddressesProviderRegistry} from '../../types/LendingPoolAddressesProviderRegistry';
-import {getEthersSigners} from '../../helpers/contracts-helpers';
-import {Weth9Mocked} from '../../types/Weth9Mocked';
-import {WethGateway} from '../../types/WethGateway';
 import {solidity} from 'ethereum-waffle';
+import {tEthereumAddress} from '../../helpers/types';
+import {AaveGovernanceV2} from '../../types/AaveGovernanceV2';
+import {GovernanceStrategy} from '../../types/GovernanceStrategy';
+import {AaveTokenV2} from '../../types/AaveTokenV2';
+import {Executor} from '../../types/Executor';
+import {getEthersSigners} from '../../helpers/contracts-helpers';
+import {
+  getAaveGovernanceV2,
+  getAaveV2Mocked,
+  getExecutor,
+  getGovernanceStrategy,
+} from '../../helpers/contracts-getters';
 
-chai.use(bignumberChai());
-chai.use(almostEqual());
 chai.use(solidity);
 
 export interface SignerWithAddress {
@@ -42,19 +25,10 @@ export interface SignerWithAddress {
 export interface TestEnv {
   deployer: SignerWithAddress;
   users: SignerWithAddress[];
-  pool: LendingPool;
-  configurator: LendingPoolConfigurator;
-  oracle: PriceOracle;
-  helpersContract: AaveProtocolTestHelpers;
-  weth: Weth9Mocked;
-  aWETH: AToken;
-  dai: MintableERC20;
-  aDai: AToken;
-  usdc: MintableERC20;
-  aave: MintableERC20;
-  addressesProvider: LendingPoolAddressesProvider;
-  registry: LendingPoolAddressesProviderRegistry;
-  wethGateway: WethGateway;
+  aave: AaveTokenV2;
+  gov: AaveGovernanceV2;
+  strategy: GovernanceStrategy;
+  executor: Executor;
 }
 
 let buidlerevmSnapshotId: string = '0x1';
@@ -67,19 +41,10 @@ const setBuidlerevmSnapshotId = (id: string) => {
 const testEnv: TestEnv = {
   deployer: {} as SignerWithAddress,
   users: [] as SignerWithAddress[],
-  pool: {} as LendingPool,
-  configurator: {} as LendingPoolConfigurator,
-  helpersContract: {} as AaveProtocolTestHelpers,
-  oracle: {} as PriceOracle,
-  weth: {} as Weth9Mocked,
-  aWETH: {} as AToken,
-  dai: {} as MintableERC20,
-  aDai: {} as AToken,
-  usdc: {} as MintableERC20,
-  aave: {} as MintableERC20,
-  addressesProvider: {} as LendingPoolAddressesProvider,
-  registry: {} as LendingPoolAddressesProviderRegistry,
-  wethGateway: {} as WethGateway,
+  aave: {} as AaveTokenV2,
+  gov: {} as AaveGovernanceV2,
+  strategy: {} as GovernanceStrategy,
+  executor: {} as Executor,
 } as TestEnv;
 
 export async function initializeMakeSuite() {
@@ -89,53 +54,18 @@ export async function initializeMakeSuite() {
     signer: _deployer,
   };
 
-  for (const signer of restSigners) {
-    testEnv.users.push({
+  testEnv.users = await Promise.all(
+    restSigners.map(async (signer) => ({
       signer,
       address: await signer.getAddress(),
-    });
-  }
+    }))
+  );
+
   testEnv.deployer = deployer;
-  testEnv.pool = await getLendingPool();
-
-  testEnv.configurator = await getLendingPoolConfiguratorProxy();
-
-  testEnv.oracle = await getPriceOracle();
-  testEnv.addressesProvider = await getLendingPoolAddressesProvider();
-  testEnv.registry = await getLendingPoolAddressesProviderRegistry();
-
-  testEnv.helpersContract = await getAaveProtocolTestHelpers();
-
-  const allTokens = await testEnv.helpersContract.getAllATokens();
-
-  const aDaiAddress = allTokens.find((aToken) => aToken.symbol === 'aDAI')?.tokenAddress;
-
-  const aWEthAddress = allTokens.find((aToken) => aToken.symbol === 'aWETH')?.tokenAddress;
-
-  const reservesTokens = await testEnv.helpersContract.getAllReservesTokens();
-
-  const daiAddress = reservesTokens.find((token) => token.symbol === 'DAI')?.tokenAddress;
-  const usdcAddress = reservesTokens.find((token) => token.symbol === 'USDC')?.tokenAddress;
-  const aaveAddress = reservesTokens.find((token) => token.symbol === 'AAVE')?.tokenAddress;
-  const wethAddress = reservesTokens.find((token) => token.symbol === 'WETH')?.tokenAddress;
-
-  if (!aDaiAddress || !aWEthAddress) {
-    console.log(`atoken-modifiers.spec: aTokens not correctly initialized`);
-    process.exit(1);
-  }
-  if (!daiAddress || !usdcAddress || !aaveAddress || !wethAddress) {
-    console.log(`atoken-modifiers.spec: USDC or DAI not correctly initialized`);
-    process.exit(1);
-  }
-
-  testEnv.aDai = await getAToken(aDaiAddress);
-  testEnv.aWETH = await getAToken(aWEthAddress);
-
-  testEnv.dai = await getMintableErc20(daiAddress);
-  testEnv.usdc = await getMintableErc20(usdcAddress);
-  testEnv.aave = await getMintableErc20(aaveAddress);
-  testEnv.weth = await getWETHMocked(wethAddress);
-  testEnv.wethGateway = await getWETHGateway();
+  testEnv.aave = await getAaveV2Mocked();
+  testEnv.gov = await getAaveGovernanceV2();
+  testEnv.strategy = await getGovernanceStrategy();
+  testEnv.executor = await getExecutor();
 }
 
 export function makeSuite(name: string, tests: (testEnv: TestEnv) => void) {

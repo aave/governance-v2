@@ -33,7 +33,7 @@ if (!SKIP_LOAD) {
   });
 }
 
-require(`${path.join(__dirname, 'tasks/misc')}/set-bre.ts`);
+require(`${path.join(__dirname, 'tasks/misc')}/set-DRE.ts`);
 
 const getCommonNetworkConfig = (networkName: eEthereumNetwork, networkId: number) => {
   return {
@@ -53,11 +53,22 @@ const getCommonNetworkConfig = (networkName: eEthereumNetwork, networkId: number
 
 const buidlerConfig: HardhatUserConfig = {
   solidity: {
-    version: '0.7.5',
-    settings: {
-      optimizer: {enabled: true, runs: 200},
-      evmVersion: 'istanbul',
-    },
+    compilers: [
+      {
+        version: '0.7.5',
+        settings: {
+          optimizer: {enabled: true, runs: 200},
+          evmVersion: 'istanbul',
+        },
+      },
+      {
+        version: '0.6.10',
+        settings: {
+          optimizer: {enabled: true, runs: 200},
+          evmVersion: 'istanbul',
+        },
+      },
+    ],
   },
   typechain: {
     outDir: 'types',
