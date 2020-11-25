@@ -1,4 +1,6 @@
 # Aave Governance v2
 
-## Mainnet deployment flow
+## Architecture
+
+![governance-v2-architecture](./gov-v2-architecture.png)
 
