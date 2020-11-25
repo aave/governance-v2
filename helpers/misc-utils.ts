@@ -36,8 +36,25 @@ export const timeLatest = async () => {
   return new BigNumber(block.timestamp);
 };
 
-export const advanceBlock = async (timestamp: number) =>
-  await DRE.ethers.provider.send('evm_mine', [timestamp]);
+export const advanceBlock = async (timestamp?: number) =>
+  await DRE.ethers.provider.send('evm_mine', timestamp ? [timestamp] : []);
+
+export const latestBlock = async () => await DRE.ethers.provider.getBlockNumber();
+
+export const advanceBlockTo = async (target: number) => {
+  const currentBlock = await latestBlock();
+  const start = Date.now();
+  let notified;
+  if (target < currentBlock)
+    throw Error(`Target block #(${target}) is lower than current block #(${currentBlock})`);
+  while ((await latestBlock()) < target) {
+    if (!notified && Date.now() - start >= 5000) {
+      notified = true;
+      console.log(`advanceBlockTo: Advancing too many blocks is causing this test to be slow.'`);
+    }
+    await advanceBlock();
+  }
+};
 
 export const increaseTime = async (secondsToIncrease: number) => {
   await DRE.ethers.provider.send('evm_increaseTime', [secondsToIncrease]);

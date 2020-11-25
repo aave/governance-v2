@@ -13,6 +13,7 @@ import {
   getAaveGovernanceV2,
   getAaveV2Mocked,
   getExecutor,
+  getExecutorMock,
   getGovernanceStrategy,
 } from '../../helpers/contracts-getters';
 
@@ -24,6 +25,7 @@ export interface SignerWithAddress {
 }
 export interface TestEnv {
   deployer: SignerWithAddress;
+  minter: SignerWithAddress;
   users: SignerWithAddress[];
   aave: AaveTokenV2;
   gov: AaveGovernanceV2;
@@ -40,6 +42,7 @@ const setBuidlerevmSnapshotId = (id: string) => {
 
 const testEnv: TestEnv = {
   deployer: {} as SignerWithAddress,
+  minter: {} as SignerWithAddress,
   users: [] as SignerWithAddress[],
   aave: {} as AaveTokenV2,
   gov: {} as AaveGovernanceV2,
@@ -48,10 +51,14 @@ const testEnv: TestEnv = {
 } as TestEnv;
 
 export async function initializeMakeSuite() {
-  const [_deployer, ...restSigners] = await getEthersSigners();
+  const [_deployer, _minter, ...restSigners] = await getEthersSigners();
   const deployer: SignerWithAddress = {
     address: await _deployer.getAddress(),
     signer: _deployer,
+  };
+  const minter: SignerWithAddress = {
+    address: await _minter.getAddress(),
+    signer: _minter,
   };
 
   testEnv.users = await Promise.all(
@@ -62,10 +69,11 @@ export async function initializeMakeSuite() {
   );
 
   testEnv.deployer = deployer;
+  testEnv.minter = minter;
   testEnv.aave = await getAaveV2Mocked();
   testEnv.gov = await getAaveGovernanceV2();
   testEnv.strategy = await getGovernanceStrategy();
-  testEnv.executor = await getExecutor();
+  testEnv.executor = await getExecutorMock();
 }
 
 export function makeSuite(name: string, tests: (testEnv: TestEnv) => void) {

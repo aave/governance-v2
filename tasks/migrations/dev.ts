@@ -6,12 +6,12 @@ task(`migrate:dev`, `Deploy governance for tests and development purposes`)
   .addFlag('silent')
   .setAction(async ({verify, silent}, _DRE) => {
     await _DRE.run('set-DRE');
-    const adminSigner = await getFirstSigner();
+    const [adminSigner, tokenMinterSigner] = await _DRE.ethers.getSigners();
     const admin = await adminSigner.getAddress();
-
+    const tokenMinter = await tokenMinterSigner.getAddress();
     // Deploy mocked AAVE v2
     const token = await _DRE.run('deploy:mocked-aave', {
-      minter: admin,
+      minter: tokenMinter,
       verify,
     });
 
@@ -31,8 +31,12 @@ task(`migrate:dev`, `Deploy governance for tests and development purposes`)
     });
 
     // Deploy executor
-    const delay = '86400'; // minimum 1 day
-    const executor = await _DRE.run('deploy:executor', {admin, delay, verify});
+    const delay = '60'; // 60 seconds
+    const executor = await _DRE.run('deploy:executor-mock', {
+      admin: governance.address,
+      delay,
+      verify,
+    });
 
     // Whitelist executor
     await _DRE.run('init:gov', {governance: governance.address, executor: executor.address});

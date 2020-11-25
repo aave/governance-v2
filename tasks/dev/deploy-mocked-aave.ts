@@ -5,7 +5,7 @@ import {deployMockedAaveV2} from '../../helpers/contracts-deployments';
 
 task(`deploy:mocked-aave`, `Deploy mocked AAVE V2`)
   .addFlag('verify')
-  .addParam('minter', 'Minter to mint all the supply of mock AAVE v2 token', ZERO_ADDRESS)
+  .addParam('minter', 'Minter to mint all the supply of mock AAVE v2 token')
   .setAction(async ({minter, verify}, _DRE) => {
     _DRE.run('set-DRE');
     if (!isAddress(minter)) {

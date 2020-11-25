@@ -28,6 +28,7 @@ export enum eContractid {
   AaveTokenV1MockImpl = 'AaveTokenV1MockImpl',
   AaveTokenV2 = 'AaveTokenV2',
   AaveTokenV1Mock = 'AaveTokenV1Mock',
+  ExecutorMock = 'ExecutorMock',
 }
 
 export type tEthereumAddress = string;

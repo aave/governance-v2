@@ -7,10 +7,10 @@ import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
 import {IVoteValidator} from '../interfaces/IVoteValidator.sol';
 import {add256, sub256, mul256, div256} from '../misc/Helpers.sol';
 
-contract VoteValidator is IVoteValidator {
-  uint256 public constant override VOTING_DURATION = 86400; // Blocks in 14 days
+contract VoteValidatorMock is IVoteValidator {
+  uint256 public constant override VOTING_DURATION = 5; //
   uint256 public constant override VOTE_DIFFERENTIAL = 500; // 5%
-  uint256 public constant override MINIMUM_QUORUM = 2000; //  100%
+  uint256 public constant override MINIMUM_QUORUM = 2000; //  20%
   uint256 public constant override ONE_HUNDRED_WITH_PRECISION = 10000;
 
   function isProposalPassed(IAaveGovernanceV2 governance, uint256 proposalId)

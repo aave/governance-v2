@@ -7,6 +7,7 @@ import {
   InitializableAdminUpgradeabilityProxyFactory,
   AaveTokenV1MockFactory,
   AaveTokenV2Factory,
+  ExecutorMockFactory,
 } from '../types';
 import {withSaveAndVerify} from './contracts-helpers';
 import {waitForTx} from './misc-utils';
@@ -62,6 +63,20 @@ export const deployExecutor = async (admin: tEthereumAddress, delay: string, ver
   );
 };
 
+export const deployExecutorMock = async (
+  admin: tEthereumAddress,
+  delay: string,
+  verify?: boolean
+) => {
+  const args: [tEthereumAddress, string] = [admin, delay];
+  return withSaveAndVerify(
+    await new ExecutorMockFactory(await getFirstSigner()).deploy(...args),
+    eContractid.ExecutorMock,
+    args,
+    verify
+  );
+};
+
 export const deployProxy = async (customId: string, verify?: boolean) =>
   await withSaveAndVerify(
     await new InitializableAdminUpgradeabilityProxyFactory(await getFirstSigner()).deploy(),
@@ -94,7 +109,7 @@ export const deployMockedAaveV2 = async (minter: tEthereumAddress, verify?: bool
   await waitForTx(
     await proxy.functions['initialize(address,address,bytes)'](
       implementationV1.address,
-      minter,
+      await (await getFirstSigner()).getAddress(),
       encodedPayload
     )
   );
