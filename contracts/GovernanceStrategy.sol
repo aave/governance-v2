@@ -8,18 +8,19 @@ import {IDelegationAwareToken} from './interfaces/IDelegationAwareToken.sol';
 import {mul256, div256} from './Helpers.sol';
 
 contract GovernanceStrategy is IGovernanceStrategy {
-  address public immutable PROPOSITION_TOKEN;
-  address public immutable VOTING_TOKEN;
   uint256 public immutable PROPOSITION_THRESHOLD; // With ONE_HUNDRED_WITH_PRECISION being 100%
   uint256 public constant ONE_HUNDRED_WITH_PRECISION = 10000;
+  
+  address[] private _propositionTokens;
+  address[] private _votingTokens;
 
   constructor(
-    address propositionToken,
-    address votingToken,
+    address[] memory propositionTokens,
+    address[] memory votingTokens,
     uint256 propositionThreshold
   ) {
-    PROPOSITION_TOKEN = propositionToken;
-    VOTING_TOKEN = votingToken;
+    _propositionTokens = propositionTokens;
+    _votingTokens = votingTokens;
     PROPOSITION_THRESHOLD = propositionThreshold;
   }
 
@@ -37,20 +38,6 @@ contract GovernanceStrategy is IGovernanceStrategy {
       getPropositionPowerAt(user, blockNumber) >= getMinimumPropositionPowerNeeded(blockNumber);
   }
 
-  function getPropositionPowerAt(address user, uint256 blockNumber)
-    public
-    view
-    override
-    returns (uint256)
-  {
-    return
-      IDelegationAwareToken(PROPOSITION_TOKEN).getPowerAtBlock(
-        user,
-        blockNumber,
-        IDelegationAwareToken.DelegationType.PROPOSITION_POWER
-      );
-  }
-
   function getMinimumPropositionPowerNeeded(uint256 blockNumber)
     public
     view
@@ -65,11 +52,33 @@ contract GovernanceStrategy is IGovernanceStrategy {
   }
 
   function getTotalPropositionSupplyAt(uint256 blockNumber) public view override returns (uint256) {
-    return IERC20(PROPOSITION_TOKEN).totalSupplyAt(blockNumber);
+    uint256 aggregatedPropositionSupply;
+    uint256 tokensLength = _propositionTokens.length;
+    for (uint256 i = 0; i < tokensLength; i++) {
+      aggregatedPropositionSupply += IERC20(_propositionTokens[i]).totalSupplyAt(blockNumber);
+    }
+
+    return aggregatedPropositionSupply;
   }
 
   function getTotalVotingSupplyAt(uint256 blockNumber) public view override returns (uint256) {
     return getTotalPropositionSupplyAt(blockNumber);
+  }
+
+  function getPropositionPowerAt(address user, uint256 blockNumber)
+    public
+    view
+    override
+    returns (uint256)
+  {
+    uint256 aggregatedUserPropositionPower;
+    uint256 tokensLength = _propositionTokens.length;
+    for (uint256 i = 0; i < tokensLength; i++) {
+      aggregatedUserPropositionPower += IDelegationAwareToken(_propositionTokens[i])
+        .getPowerAtBlock(user, blockNumber, IDelegationAwareToken.DelegationType.PROPOSITION_POWER);
+    }
+
+    return aggregatedUserPropositionPower;
   }
 
   function getVotingPowerAt(address user, uint256 blockNumber)
@@ -78,11 +87,16 @@ contract GovernanceStrategy is IGovernanceStrategy {
     override
     returns (uint256)
   {
-    return
-      IDelegationAwareToken(VOTING_TOKEN).getPowerAtBlock(
+    uint256 aggregatedUserVotingPower;
+    uint256 tokensLength = _votingTokens.length;
+    for (uint256 i = 0; i < tokensLength; i++) {
+      aggregatedUserVotingPower += IDelegationAwareToken(_votingTokens[i]).getPowerAtBlock(
         user,
         blockNumber,
         IDelegationAwareToken.DelegationType.VOTING_POWER
       );
+    }
+
+    return aggregatedUserVotingPower;
   }
 }
