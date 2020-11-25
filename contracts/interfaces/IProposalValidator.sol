@@ -4,7 +4,24 @@ pragma abicoder v2;
 
 import {IAaveGovernanceV2} from './IAaveGovernanceV2.sol';
 
-interface IVoteValidator {
+interface IProposalValidator {
+  function validateCreatorOfProposal(
+    IAaveGovernanceV2 governance,
+    address user,
+    uint256 blockNumber
+  ) external view;
+
+  function isPropositionPowerEnough(
+    IAaveGovernanceV2 governance,
+    address user,
+    uint256 blockNumber
+  ) external view returns (bool);
+
+  function getMinimumPropositionPowerNeeded(IAaveGovernanceV2 governance, uint256 blockNumber)
+    external
+    view
+    returns (uint256);
+
   function isProposalPassed(IAaveGovernanceV2 governance, uint256 proposalId)
     external
     view
@@ -21,6 +38,8 @@ interface IVoteValidator {
     returns (bool);
 
   function getMinimumVotingPowerNeeded(uint256 votingSupply) external view returns (uint256);
+
+  function PROPOSITION_THRESHOLD() external view returns (uint256);
 
   function VOTING_DURATION() external view returns (uint256);
 

@@ -4,7 +4,7 @@ pragma abicoder v2;
 
 import {IVotingStrategy} from './interfaces/IVotingStrategy.sol';
 import {IExecutorWithTimelock} from './interfaces/IExecutorWithTimelock.sol';
-import {IVoteValidator} from './interfaces/IVoteValidator.sol';
+import {IProposalValidator} from './interfaces/IProposalValidator.sol';
 import {IGovernanceStrategy} from './interfaces/IGovernanceStrategy.sol';
 import {IAaveGovernanceV2} from './interfaces/IAaveGovernanceV2.sol';
 import {Ownable} from './Ownable.sol';
@@ -69,7 +69,8 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     );
     require(_whitelistedExecutors[address(executor)], 'EXECUTOR_NOT_WHITELISTED');
 
-    IGovernanceStrategy(_governanceStrategy).validateCreatorOfProposal(
+    IProposalValidator(address(executor)).validateCreatorOfProposal(
+      this,
       msg.sender,
       block.number - 1
     );
@@ -77,7 +78,10 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     CreateVars memory vars;
 
     vars.startBlock = add256(block.number, _votingDelay);
-    vars.endBlock = add256(vars.startBlock, IVoteValidator(address(executor)).VOTING_DURATION());
+    vars.endBlock = add256(
+      vars.startBlock,
+      IProposalValidator(address(executor)).VOTING_DURATION()
+    );
 
     vars.previousProposalsCount = _proposalsCount;
 
@@ -124,7 +128,8 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
 
     Proposal storage proposal = _proposals[proposalId];
     require(
-      !IGovernanceStrategy(_governanceStrategy).isPropositionPowerEnough(
+      IProposalValidator(address(proposal.executor)).isPropositionPowerEnough(
+        this,
         proposal.creator,
         block.number - 1
       ),
@@ -297,7 +302,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
       return ProposalState.Pending;
     } else if (block.number <= proposal.endBlock) {
       return ProposalState.Active;
-    } else if (!IVoteValidator(address(proposal.executor)).isProposalPassed(this, proposalId)) {
+    } else if (!IProposalValidator(address(proposal.executor)).isProposalPassed(this, proposalId)) {
       return ProposalState.Failed;
     } else if (proposal.executionTime == 0) {
       return ProposalState.Succeeded;
@@ -359,8 +364,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   function _setGovernanceStrategy(address governanceStrategy) internal {
     require(
       IGovernanceStrategy(governanceStrategy).getTotalPropositionSupplyAt(block.number) > 0 &&
-        IGovernanceStrategy(governanceStrategy).getTotalVotingSupplyAt(block.number) > 0 &&
-        IGovernanceStrategy(governanceStrategy).getMinimumPropositionPowerNeeded(block.number) > 0,
+        IGovernanceStrategy(governanceStrategy).getTotalVotingSupplyAt(block.number) > 0,
       'INVALID_STRATEGY'
     );
 
