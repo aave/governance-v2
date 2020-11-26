@@ -10,9 +10,9 @@
     "test": "TS_NODE_TRANSPILE_ONLY=1 hardhat test",
     "coverage": "npm run compile:quiet && hardhat coverage && npm run compile:quiet",
     "dev:prettier": "prettier --write .",
-    "ci:test": "npm run compile:silent && npm run test",
+    "ci:test": "npm run compile:quiet && npm run test",
     "ci:clean": "rm -rf ./artifacts ./cache ./types",
-    "migrate:dev": "npm run compile:silent && hardhat migrate:dev"
+    "migrate:dev": "npm run compile:quiet && hardhat migrate:dev"
   },
   "devDependencies": {
     "@nomiclabs/buidler-waffle": "2.0.0",
