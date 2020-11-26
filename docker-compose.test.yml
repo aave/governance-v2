@@ -4,3 +4,5 @@ services:
     build:
       context: ./
       dockerfile: ./Dockerfile_test
+    enviroment:
+      GITLAB_ACCESS_TOKEN: ${CI_JOB_TOKEN}
