@@ -3,16 +3,18 @@
   "version": "1.0.0",
   "description": "Aave Governance v2 smart contracts",
   "scripts": {
-    "run-env": "npm i && tail -f /dev/null",
+    "run-env": "npm run load:npm && npm i && tail -f /dev/null",
     "hardhat": "hardhat",
     "compile": "SKIP_LOAD=true hardhat compile",
-    "compile:quiet": "SKIP_LOAD=true hardhat compile --quiet",
-    "test": "TS_NODE_TRANSPILE_ONLY=1 hardhat test",
-    "coverage": "npm run compile:quiet && hardhat coverage && npm run compile:quiet",
+    "compile:force": "npm run compile -- --force",
+    "compile:force:quiet": "npm run compile:force -- --quiet",
+    "test": "npm run compile:force:quiet && TS_NODE_TRANSPILE_ONLY=1 hardhat test",
+    "coverage": "SKIP_LOAD=true npx hardhat typechain && node --max_old_space_size=6144 node_modules/.bin/hardhat coverage",
     "dev:prettier": "prettier --write .",
-    "ci:test": "npm run compile:quiet && npm run test",
-    "ci:clean": "rm -rf ./artifacts ./cache ./types",
-    "migrate:dev": "npm run compile:quiet && hardhat migrate:dev"
+    "ci:test": "npm run compile:force:quiet && npm run test",
+    "ci:clean": "rm -rf ./artifacts ./cache ./types ./coverage*",
+    "migrate:dev": "npm run compile:force:quiet && hardhat migrate:dev",
+    "load:npm": "npm set \"@aave-tech:registry https://gitlab.com/api/v4/projects/19392283/packages/npm/\" && npm set \"//gitlab.com/api/v4/packages/npm/:_authToken=${GITLAB_ACCESS_TOKEN}\" && npm set \"//gitlab.com/api/v4/projects/19392283/packages/npm/:_authToken=${GITLAB_ACCESS_TOKEN}\""
   },
   "devDependencies": {
     "@nomiclabs/buidler-waffle": "2.0.0",

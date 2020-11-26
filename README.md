@@ -29,4 +29,18 @@ TENDERLY_USERNAME=""
 
 ```
 
+## Test
+
+For running the test suite, run:
+
+```
+docker-compose run contracts-env npm run test
+```
+
+For running coverage, run:
+
+```
+docker-compose run contracts-env npm run coverage
+```
+
 ## Mainnet deployment flow
