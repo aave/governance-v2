@@ -3,19 +3,18 @@ import {Signer} from 'ethers';
 import chai from 'chai';
 // @ts-ignore
 import {solidity} from 'ethereum-waffle';
-import {tEthereumAddress} from '../../helpers/types';
-import {AaveGovernanceV2} from '../../types/AaveGovernanceV2';
-import {GovernanceStrategy} from '../../types/GovernanceStrategy';
-import {AaveTokenV2} from '../../types/AaveTokenV2';
-import {Executor} from '../../types/Executor';
 import {getEthersSigners} from '../../helpers/contracts-helpers';
 import {
   getAaveGovernanceV2,
   getAaveV2Mocked,
-  getExecutor,
   getExecutorMock,
   getGovernanceStrategy,
 } from '../../helpers/contracts-getters';
+import {tEthereumAddress} from '../../helpers/types';
+import {AaveGovernanceV2} from '../../types/AaveGovernanceV2';
+import {AaveTokenV2} from '../../types/AaveTokenV2';
+import {ExecutorMock} from '../../types/ExecutorMock';
+import {GovernanceStrategy} from '../../types/GovernanceStrategy';
 
 chai.use(solidity);
 
@@ -30,7 +29,7 @@ export interface TestEnv {
   aave: AaveTokenV2;
   gov: AaveGovernanceV2;
   strategy: GovernanceStrategy;
-  executor: Executor;
+  executor: ExecutorMock;
 }
 
 let buidlerevmSnapshotId: string = '0x1';
@@ -47,7 +46,7 @@ const testEnv: TestEnv = {
   aave: {} as AaveTokenV2,
   gov: {} as AaveGovernanceV2,
   strategy: {} as GovernanceStrategy,
-  executor: {} as Executor,
+  executor: {} as ExecutorMock,
 } as TestEnv;
 
 export async function initializeMakeSuite() {

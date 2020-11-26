@@ -12,6 +12,7 @@ types
 deployed-contracts.json
 
 coverage
+coverage.json
 .coverage_artifacts
 .coverage_cache
 .coverage_contracts

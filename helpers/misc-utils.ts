@@ -5,7 +5,6 @@ import FileSync from 'lowdb/adapters/FileSync';
 import {WAD} from './constants';
 import {Wallet, ContractTransaction} from 'ethers';
 import {HardhatRuntimeEnvironment} from 'hardhat/types';
-import {BuidlerRuntimeEnvironment} from '@nomiclabs/buidler/types';
 
 export const toWad = (value: string | number) => new BigNumber(value).times(WAD).toFixed();
 
@@ -14,10 +13,8 @@ export const stringToBigNumber = (amount: string): BigNumber => new BigNumber(am
 
 export const getDb = () => low(new FileSync('./deployed-contracts.json'));
 
-export let DRE:
-  | HardhatRuntimeEnvironment
-  | BuidlerRuntimeEnvironment = {} as HardhatRuntimeEnvironment;
-export const setDRE = (_DRE: HardhatRuntimeEnvironment | BuidlerRuntimeEnvironment) => {
+export let DRE: HardhatRuntimeEnvironment = {} as HardhatRuntimeEnvironment;
+export const setDRE = (_DRE: HardhatRuntimeEnvironment) => {
   DRE = _DRE;
 };
 
