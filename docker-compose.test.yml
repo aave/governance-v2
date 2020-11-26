@@ -4,6 +4,3 @@ services:
     build:
       context: ./
       dockerfile: ./Dockerfile_test
-    environment:
-      - MNEMONIC
-      - ALCHEMY_KEY
