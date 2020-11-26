@@ -1,9 +1,12 @@
 FROM node:14
+ARG GITLAB_ACCESS_TOKEN
 
 WORKDIR /app
-ADD  ./package-lock.json ./package.json /app/
+
+ADD  ./package-lock.json ./package.json ./.npmrc /app/
+
+RUN npm config set @aave-tech:registry https://gitlab.com/api/v4/projects/19392283/packages/npm/
+
 RUN npm ci
 
 ADD ./ /app/
-
-RUN npm config set @aave-tech:registry https://gitlab.com/api/v4/projects/19392283/packages/npm/

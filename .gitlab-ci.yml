@@ -13,7 +13,7 @@ test:
     - docker-compose -p ${CI_JOB_ID} -f docker-compose.test.yml run contracts-env npm run ci:clean
     - docker-compose -p ${CI_JOB_ID} -f docker-compose.test.yml down
 
-deploy-mainnet-fork:
+deploy-dev:
   tags:
     - aave-build-runner
   stage: checks
