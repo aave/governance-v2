@@ -2,10 +2,10 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-import {IGovernanceStrategy} from './interfaces/IGovernanceStrategy.sol';
-import {IERC20} from './interfaces/IERC20.sol';
-import {IDelegationAwareToken} from './interfaces/IDelegationAwareToken.sol';
-import {mul256, div256} from './Helpers.sol';
+import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
+import {IERC20} from '../interfaces/IERC20.sol';
+import {IDelegationAwareToken} from '../interfaces/IDelegationAwareToken.sol';
+import {mul256, div256} from '../misc/Helpers.sol';
 
 contract GovernanceStrategy is IGovernanceStrategy {
   address public immutable PROPOSITION_TOKEN;

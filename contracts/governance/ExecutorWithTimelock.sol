@@ -2,9 +2,9 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-import {IExecutorWithTimelock} from './interfaces/IExecutorWithTimelock.sol';
-import {IAaveGovernanceV2} from './interfaces/IAaveGovernanceV2.sol';
-import {add256} from './Helpers.sol';
+import {IExecutorWithTimelock} from '../interfaces/IExecutorWithTimelock.sol';
+import {IAaveGovernanceV2} from '../interfaces/IAaveGovernanceV2.sol';
+import {add256} from '../misc/Helpers.sol';
 
 contract ExecutorWithTimelock is IExecutorWithTimelock {
   uint256 public constant override GRACE_PERIOD = 14 days;
