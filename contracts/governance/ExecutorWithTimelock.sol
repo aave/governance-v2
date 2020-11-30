@@ -6,6 +6,13 @@ import {IExecutorWithTimelock} from '../interfaces/IExecutorWithTimelock.sol';
 import {IAaveGovernanceV2} from '../interfaces/IAaveGovernanceV2.sol';
 import {add256} from '../misc/Helpers.sol';
 
+/**
+ * @title Time Locked Executor Contract, inherited by Aave Governance Executors
+ * @dev Contract that can queue, execute, cancel transactions voted by Governance
+ * Queued transactions can be executed after a delay and until
+ * Grace period is not over. 
+ * @author Aave
+ **/
 contract ExecutorWithTimelock is IExecutorWithTimelock {
   uint256 public constant override GRACE_PERIOD = 14 days;
   uint256 public constant override MINIMUM_DELAY = 1 days;
@@ -51,6 +58,11 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     bytes resultData
   );
 
+  /**
+   * @dev Constructor
+   * @param admin admin address, that can call the main functions, (Governance)
+   * @param delay minimum time between queueing and execution of proposal
+   **/
   constructor(address admin, uint256 delay) {
     _validateDelay(delay);
     _delay = delay;
@@ -75,6 +87,10 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     _;
   }
 
+  /**
+   * @dev Set the delay
+   * @param delay delay between queue and execution of proposal
+   **/
   function setDelay(uint256 delay) public onlyTimelock {
     _validateDelay(delay);
     _delay = delay;
@@ -82,6 +98,9 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     emit NewDelay(delay);
   }
 
+  /**
+   * @dev Function enabling pending admin to become admin
+   **/
   function acceptAdmin() public onlyPendingAdmin {
     _admin = msg.sender;
     _pendingAdmin = address(0);
@@ -89,12 +108,27 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     emit NewAdmin(msg.sender);
   }
 
+  /**
+   * @dev Setting a new pending admin (that can then become admin)
+   * Can only be called by this executor (i.e via proposal)
+   * @param newPendingAdmin address of the new admin
+   **/
   function setPendingAdmin(address newPendingAdmin) public onlyTimelock {
     _pendingAdmin = newPendingAdmin;
 
     emit NewPendingAdmin(newPendingAdmin);
   }
 
+  /**
+   * @dev Function, called by Governance, that queue a transaction, returns action hash
+   * @param target smart contract target
+   * @param value wei value of the transaction
+   * @param signature function signature of the transaction
+   * @param data function arguments of the transaction or callData if signature empty
+   * @param executionTime time at which to execute the transaction
+   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   * @return the action Hash
+   **/
   function queueTransaction(
     address target,
     uint256 value,
@@ -114,6 +148,16 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     return actionHash;
   }
 
+  /**
+   * @dev Function, called by Governance, that cancels a transaction, returns action hash
+   * @param target smart contract target
+   * @param value wei value of the transaction
+   * @param signature function signature of the transaction
+   * @param data function arguments of the transaction or callData if signature empty
+   * @param executionTime time at which to execute the transaction
+   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   * @return the action Hash
+   **/
   function cancelTransaction(
     address target,
     uint256 value,
@@ -121,7 +165,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     bytes memory data,
     uint256 executionTime,
     bool withDelegatecall
-  ) public override onlyAdmin {
+  ) public override onlyAdmin returns (bytes32) {
     bytes32 actionHash = keccak256(
       abi.encode(target, value, signature, data, executionTime, withDelegatecall)
     );
@@ -136,8 +180,19 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
       executionTime,
       withDelegatecall
     );
+    return actionHash;
   }
 
+  /**
+   * @dev Function, called by Governance, that cancels a transaction, returns the callData executed
+   * @param target smart contract target
+   * @param value wei value of the transaction
+   * @param signature function signature of the transaction
+   * @param data function arguments of the transaction or callData if signature empty
+   * @param executionTime time at which to execute the transaction
+   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   * @return the callData executed as memory bytes
+   **/
   function executeTransaction(
     address target,
     uint256 value,
@@ -186,25 +241,49 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
       resultData
     );
 
-    return data;
+    return resultData;
   }
 
+  /**
+   * @dev Getter of the current admin address (should be governance)
+   * @return The address of the current admin 
+   **/
   function getAdmin() external view override returns (address) {
     return _admin;
   }
 
+  /**
+   * @dev Getter of the current pending admin address
+   * @return The address of the pending admin 
+   **/
   function getPendingAdmin() external view override returns (address) {
     return _pendingAdmin;
   }
 
+  /**
+   * @dev Getter of the delay between queuing and execution
+   * @return The delay in seconds
+   **/
   function getDelay() external view override returns (uint256) {
     return _delay;
   }
 
+  /**
+   * @dev Returns whether an action (via actionHash) is queued
+   * @param actionHash hash of the action to be checked
+   * keccak256(abi.encode(target, value, signature, data, executionTime, withDelegatecall))
+   * @return true if underlying action of actionHash is queued
+   **/
   function isActionQueued(bytes32 actionHash) external view override returns (bool) {
     return _queuedTransactions[actionHash];
   }
 
+  /**
+   * @dev Checks whether a proposal is over its grace period 
+   * @param governance Governance contract
+   * @param proposalId Id of the proposal against which to test
+   * @return true of proposal is over grace period
+   **/
   function isProposalOverGracePeriod(IAaveGovernanceV2 governance, uint256 proposalId)
     external
     view

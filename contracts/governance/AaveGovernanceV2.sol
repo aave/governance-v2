@@ -10,6 +10,17 @@ import {IAaveGovernanceV2} from '../interfaces/IAaveGovernanceV2.sol';
 import {Ownable} from '../dependencies/open-zeppelin/Ownable.sol';
 import {isContract, add256, sub256, getChainId} from '../misc/Helpers.sol';
 
+/**
+ * @title Governance V2 contract
+ * @dev Main point of interaction with an Aave protocol's governance
+ * - Create a Proposal
+ * - Cancel a Proposal
+ * - Queue a Proposal
+ * - Execute a Proposal
+ * - Submit Vote to a Proposal
+ * Proposal States : Pending => Active => Succeeded(/Failed) => Queued => Executed(/Expired)
+ * @author Aave
+ **/
 contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   /// @dev With logic for validation of proposition and voting
   address private _governanceStrategy;
@@ -51,6 +62,16 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     uint256 previousProposalsCount;
   }
 
+  /**
+   * @dev Creates a Proposal (needs Proposition Power of creator > Threshold)
+   * @param executor The ExecutorWithTimelock contract that will execute the proposal
+   * @param targets list of contracts called by proposal's associated transactions
+   * @param values list of value in wei for each propoposal's associated transaction
+   * @param signatures list of function signatures (can be empty) to be used when created the callData
+   * @param calldatas list of calldatas: if associated signature empty, calldata ready, else calldata is arguments
+   * @param withDelegatecalls if true, transaction delegatecalls the taget, else calls the target
+   * @param ipfsHash IPFS hash of the proposal
+   **/
   function create(
     IExecutorWithTimelock executor,
     address[] memory targets,
@@ -118,6 +139,12 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     return newProposal.id;
   }
 
+  /**
+   * @dev Cancels a Proposal,
+   * either at anytime by guardian
+   * or when proposal is Pending/Active and threshold no longer reached
+   * @param proposalId id of the proposal
+   **/
   function cancel(uint256 proposalId) external override {
     ProposalState state = getProposalState(proposalId);
     require(
@@ -150,6 +177,10 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     emit ProposalCanceled(proposalId);
   }
 
+  /**
+   * @dev Queue the proposal (If Proposal Succeeded)
+   * @param proposalId id of the proposal to queue
+   **/
   function queue(uint256 proposalId) external override {
     require(getProposalState(proposalId) == ProposalState.Succeeded, 'INVALID_STATE_FOR_QUEUE');
     Proposal storage proposal = _proposals[proposalId];
@@ -170,6 +201,10 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     emit ProposalQueued(proposalId, executionTime, msg.sender);
   }
 
+  /**
+   * @dev Execute the proposal (If Proposal Queued)
+   * @param proposalId id of the proposal to execute
+   **/
   function execute(uint256 proposalId) external payable override {
     require(getProposalState(proposalId) == ProposalState.Queued, 'ONLY_QUEUED_PROPOSALS');
     Proposal storage proposal = _proposals[proposalId];
@@ -187,10 +222,23 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     emit ProposalExecuted(proposalId, msg.sender);
   }
 
+  /**
+   * @dev Function allowing msg.sender to vote for/against a proposal
+   * @param proposalId id of the proposal
+   * @param support boolean, true = vote for, false = vote against
+   **/
   function submitVote(uint256 proposalId, bool support) external override {
     return _submitVote(msg.sender, proposalId, support);
   }
 
+  /**
+   * @dev Function to register the vote of user that has voted offchain via signature
+   * @param proposalId id of the proposal
+   * @param support boolean, true = vote for, false = vote against
+   * @param v v part of the voter signature
+   * @param r r part of the voter signature
+   * @param s s part of the voter signature
+   **/
   function submitVoteBySignature(
     uint256 proposalId,
     bool support,
@@ -210,50 +258,98 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     return _submitVote(signer, proposalId, support);
   }
 
+  /**
+   * @dev Set new GovernanceStrategy
+   * Note: owner should be a timelocked executor, so needs to make a proposal
+   * @param governanceStrategy new Address of the GovernanceStrategy contract
+   **/
   function setGovernanceStrategy(address governanceStrategy) external override onlyOwner {
     _setGovernanceStrategy(governanceStrategy);
   }
 
+  /**
+   * @dev Set new Voting Delay (delay before a newly created proposal can be voted on)
+   * Note: owner should be a timelocked executor, so needs to make a proposal
+   * @param votingDelay new voting delay in seconds
+   **/
   function setVotingDelay(uint256 votingDelay) external override onlyOwner {
     _setVotingDelay(votingDelay);
   }
 
+  /**
+   * @dev Add new addresses to the list of authorized executors
+   * @param executors list of new addresses to be authorized executors
+   **/
   function whitelistExecutors(address[] memory executors) public override onlyOwner {
     for (uint256 i = 0; i < executors.length; i++) {
       _whitelistExecutor(executors[i]);
     }
   }
 
+  /**
+   * @dev Remove addresses to the list of authorized executors
+   * @param executors list of addresses to be removed as authorized executors
+   **/
   function blacklistExecutors(address[] memory executors) public override onlyOwner {
     for (uint256 i = 0; i < executors.length; i++) {
       _blacklistExecutor(executors[i]);
     }
   }
 
+  /**
+   * @dev Let the guardian abdicate from its priviledged rights
+   **/
   function __abdicate() external override onlyGuardian {
     _guardian = address(0);
   }
 
+  /**
+   * @dev Getter of the current GovernanceStrategy address
+   * @return The address of the current GovernanceStrategy contracts
+   **/
   function getGovernanceStrategy() external view override returns (address) {
     return _governanceStrategy;
   }
 
+  /**
+   * @dev Getter of the current Voting Delay (delay before a created proposal can be voted on)
+   * Different from the voting duration
+   * @return The voting delay in seconds
+   **/
   function getVotingDelay() external view override returns (uint256) {
     return _votingDelay;
   }
 
+  /**
+   * @dev Returns whether an address is an authorized executor
+   * @param executor address to evaluate as authorized executor
+   * @return true if authorized
+   **/
   function isExecutorWhitelisted(address executor) external view override returns (bool) {
     return _whitelistedExecutors[executor];
   }
 
+  /**
+   * @dev Getter the address of the guardian, that can mainly cancel proposals
+   * @return The address of the guardian
+   **/
   function getGuardian() external view override returns (address) {
     return _guardian;
   }
 
+  /**
+   * @dev Getter of the proposal count (the current number of proposals ever created)
+   * @return the proposal count
+   **/
   function getProposalsCount() external view override returns (uint256) {
     return _proposalsCount;
   }
 
+  /**
+   * @dev Getter of a proposal by id
+   * @param proposalId id of the proposal to get
+   * @return the proposal as ProposalWithoutVotes memory object
+   **/
   function getProposalById(uint256 proposalId)
     external
     view
@@ -284,6 +380,13 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     return proposalWithoutVotes;
   }
 
+  /**
+   * @dev Getter of the Vote of a voter about a proposal
+   * Note: Vote is a struct: ({bool support, uint248 votingPower})
+   * @param proposalId id of the proposal
+   * @param voter address of the voter
+   * @return The associated Vote memory object
+   **/
   function getVoteOnProposal(uint256 proposalId, address voter)
     external
     view
@@ -293,6 +396,11 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     return _proposals[proposalId].votes[voter];
   }
 
+  /**
+   * @dev Get the current state of a proposal
+   * @param proposalId id of the proposal
+   * @return The current state if the proposal
+   **/
   function getProposalState(uint256 proposalId) public view override returns (ProposalState) {
     require(_proposalsCount >= proposalId, 'INVALID_PROPOSAL_ID');
     Proposal storage proposal = _proposals[proposalId];

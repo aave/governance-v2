@@ -7,6 +7,13 @@ import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
 import {IProposalValidator} from '../interfaces/IProposalValidator.sol';
 import {add256, sub256, mul256, div256} from '../misc/Helpers.sol';
 
+/**
+ * @title Proposal Validator Contract, inherited by  Aave Governance Executors
+ * @dev Validates/Invalidations propositions state modifications.
+ * Proposition Power functions: Validates proposition creations/ cancellation
+ * Voting Power functions: Validates success of propositions.
+ * @author Aave
+ **/
 contract ProposalValidator is IProposalValidator {
   uint256 public constant override PROPOSITION_THRESHOLD = 100; // 1%
   uint256 public constant override VOTING_DURATION = 86400; // Blocks in 14 days
@@ -14,6 +21,12 @@ contract ProposalValidator is IProposalValidator {
   uint256 public constant override MINIMUM_QUORUM = 2000; // 20%
   uint256 public constant override ONE_HUNDRED_WITH_PRECISION = 10000;
 
+  /**
+   * @dev Called to validate a proposal (e.g when creating new proposal in Governance)
+   * @param governance Governance Contract
+   * @param user Address of the proposal creator
+   * @param blockNumber Block Number against which to make the test (e.g proposal creation block -1).
+   **/
   function validateCreatorOfProposal(
     IAaveGovernanceV2 governance,
     address user,
@@ -25,6 +38,13 @@ contract ProposalValidator is IProposalValidator {
     );
   }
 
+  /**
+   * @dev Returns whether a user has enough Proposition Power to make a proposal.
+   * @param governance Governance Contract
+   * @param user Address of the user to be challenged.
+   * @param blockNumber Block Number against which to make the challenge.
+   * @return true if user has enough power
+   **/
   function isPropositionPowerEnough(
     IAaveGovernanceV2 governance,
     address user,
@@ -37,7 +57,13 @@ contract ProposalValidator is IProposalValidator {
       currentGovernanceStrategy.getPropositionPowerAt(user, blockNumber) >=
       getMinimumPropositionPowerNeeded(governance, blockNumber);
   }
-
+  
+  /**
+   * @dev Returns the minimum Proposition Power needed to create a proposition.
+   * @param governance Governance Contract
+   * @param blockNumber Blocknumber at which to evaluate
+   * @return minimum Proposition Power needed
+   **/
   function getMinimumPropositionPowerNeeded(IAaveGovernanceV2 governance, uint256 blockNumber)
     public
     view
@@ -57,6 +83,12 @@ contract ProposalValidator is IProposalValidator {
       );
   }
 
+  /**
+   * @dev Returns whether a proposal passed or not
+   * @param governance Governance Contract
+   * @param proposalId Id of the proposal to set
+   * @return true if proposal passed
+   **/
   function isProposalPassed(IAaveGovernanceV2 governance, uint256 proposalId)
     external
     view
@@ -67,6 +99,11 @@ contract ProposalValidator is IProposalValidator {
       isVoteDifferentialValid(governance, proposalId));
   }
 
+  /**
+   * @dev Calculates the minimum amount of Voting Power needed for a proposal to Pass
+   * @param votingSupply Total number of oustanding voting tokens
+   * @return voting power needed for a proposal to pass
+   **/
   function getMinimumVotingPowerNeeded(uint256 votingSupply)
     public
     pure
@@ -76,6 +113,13 @@ contract ProposalValidator is IProposalValidator {
     return div256(mul256(votingSupply, MINIMUM_QUORUM), ONE_HUNDRED_WITH_PRECISION);
   }
 
+  /**
+   * @dev Check whether a proposal has reached quorum, ie has enough FOR-voting-power
+   * Here quorum is not to understand as number of votes reached, but number of for-votes reached
+   * @param governance Governance Contract
+   * @param proposalId Id of the proposal to verify
+   * @return voting power needed for a proposal to pass
+   **/
   function isQuorumValid(IAaveGovernanceV2 governance, uint256 proposalId)
     public
     view
@@ -90,6 +134,13 @@ contract ProposalValidator is IProposalValidator {
     return proposal.forVotes > getMinimumVotingPowerNeeded(votingSupply);
   }
 
+  /**
+   * @dev Check whether a proposal has enough extra FOR-votes than AGAINST-votes
+   * FOR VOTES - AGAINST VOTES > VOTE_DIFFERENTIAL * voting supply
+   * @param governance Governance Contract
+   * @param proposalId Id of the proposal to verify
+   * @return true if enough For-Votes
+   **/
   function isVoteDifferentialValid(IAaveGovernanceV2 governance, uint256 proposalId)
     public
     view
