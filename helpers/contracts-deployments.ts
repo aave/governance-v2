@@ -39,10 +39,7 @@ export const deployGovernanceStrategy = async (
   stkAave: tEthereumAddress,
   verify?: boolean
 ) => {
-  const args: [tEthereumAddress, tEthereumAddress] = [
-    aave,
-    stkAave
-  ];
+  const args: [tEthereumAddress, tEthereumAddress] = [aave, stkAave];
   return withSaveAndVerify(
     await new GovernanceStrategyFactory(await getFirstSigner()).deploy(...args),
     eContractid.GovernanceStrategy,
@@ -100,6 +97,38 @@ export const deployMockedAaveV2 = async (minter: tEthereumAddress, verify?: bool
     [],
     verify,
     eContractid.AaveTokenV2MockImpl
+  );
+  const encodedPayload = new Interface([
+    'function initialize(address minter)',
+  ]).encodeFunctionData('initialize', [minter]);
+  await waitForTx(
+    await proxy.functions['initialize(address,address,bytes)'](
+      implementationV1.address,
+      await (await getFirstSigner()).getAddress(),
+      encodedPayload
+    )
+  );
+  const encodedPayloadV2 = implementationV2.interface.encodeFunctionData('initialize');
+  await waitForTx(await proxy.upgradeToAndCall(implementationV2.address, encodedPayloadV2));
+  return await getAaveV2Mocked(proxy.address);
+};
+
+export const deployMockedStkAaveV2 = async (minter: tEthereumAddress, verify?: boolean) => {
+  const proxy = await deployProxy(eContractid.StkAaveTokenV2Mock);
+
+  const implementationV1 = await withSaveAndVerify(
+    await new AaveTokenV1MockFactory(await getFirstSigner()).deploy(),
+    eContractid.StkAaveTokenV1Mock,
+    [],
+    verify,
+    eContractid.StkAaveTokenV1MockImpl
+  );
+  const implementationV2 = await withSaveAndVerify(
+    await new AaveTokenV2Factory(await getFirstSigner()).deploy(),
+    eContractid.StkAaveTokenV2,
+    [],
+    verify,
+    eContractid.StkAaveTokenV2MockImpl
   );
   const encodedPayload = new Interface([
     'function initialize(address minter)',

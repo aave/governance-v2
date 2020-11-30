@@ -24,6 +24,13 @@ export const getAaveV2Mocked = async (address?: tEthereumAddress) =>
     await getFirstSigner()
   );
 
+export const getStkAaveV2Mocked = async (address?: tEthereumAddress) =>
+  await AaveTokenV2Factory.connect(
+    address ||
+      (await getDb().get(`${eContractid.StkAaveTokenV2Mock}.${DRE.network.name}`).value()).address,
+    await getFirstSigner()
+  );
+
 export const getGovernanceStrategy = async (address?: tEthereumAddress) =>
   await GovernanceStrategyFactory.connect(
     address ||

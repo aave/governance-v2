@@ -18,6 +18,7 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
   let executionDelay: BigNumber;
   let currentVote: BigNumber;
   let minimumPower: BigNumber;
+  let minimumCreatePower: BigNumber;
 
   before(async () => {
     const {
@@ -35,6 +36,10 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     // Supply does not change during the tests
     minimumPower = await executor.getMinimumVotingPowerNeeded(
       await strategy.getTotalVotingSupplyAt(await latestBlock())
+    );
+    minimumCreatePower = await executor.getMinimumPropositionPowerNeeded(
+      gov.address,
+      await DRE.ethers.provider.getBlockNumber()
     );
     // Add some funds to user1
     await aave.connect(minter.signer).transfer(user1.address, minimumPower.add('1'));
@@ -57,7 +62,8 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       strategy,
     } = testEnv;
     // Give enought AAVE for proposition tokens
-    await aave.connect(minter.signer).transfer(user.address, parseEther('100000'));
+    console.log('min', minimumCreatePower);
+    await aave.connect(minter.signer).transfer(user.address, minimumCreatePower);
 
     // Count current proposal id
     const count = await gov.connect(user.signer).getProposalsCount();

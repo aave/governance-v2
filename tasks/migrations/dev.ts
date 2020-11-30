@@ -15,10 +15,16 @@ task(`migrate:dev`, `Deploy governance for tests and development purposes`)
       verify,
     });
 
+    // Deploy mocked AAVE v2
+    const stkToken = await _DRE.run('deploy:mocked-stk-aave', {
+      minter: tokenMinter,
+      verify,
+    });
+
     // Deploy strategy
     const strategy = await _DRE.run('deploy:strategy', {
       aave: token.address,
-      stkAave: token.address,
+      stkAave: stkToken.address,
     });
 
     // Deploy governance v2
