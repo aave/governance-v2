@@ -27,6 +27,7 @@ export interface TestEnv {
   minter: SignerWithAddress;
   users: SignerWithAddress[];
   aave: AaveTokenV2;
+  stkAave: AaveTokenV2; // TODO change to a mock of stkAAVE
   gov: AaveGovernanceV2;
   strategy: GovernanceStrategy;
   executor: ExecutorMock;
@@ -44,6 +45,7 @@ const testEnv: TestEnv = {
   minter: {} as SignerWithAddress,
   users: [] as SignerWithAddress[],
   aave: {} as AaveTokenV2,
+  stkAave: {} as AaveTokenV2,
   gov: {} as AaveGovernanceV2,
   strategy: {} as GovernanceStrategy,
   executor: {} as ExecutorMock,
@@ -70,6 +72,7 @@ export async function initializeMakeSuite() {
   testEnv.deployer = deployer;
   testEnv.minter = minter;
   testEnv.aave = await getAaveV2Mocked();
+  testEnv.stkAave = await getAaveV2Mocked();
   testEnv.gov = await getAaveGovernanceV2();
   testEnv.strategy = await getGovernanceStrategy();
   testEnv.executor = await getExecutorMock();

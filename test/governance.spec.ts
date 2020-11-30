@@ -231,9 +231,9 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
   });
 
   it('Set governance strategy', async () => {
-    const {gov, deployer, aave} = testEnv;
+    const {gov, deployer, aave, stkAave} = testEnv;
 
-    const strategy = await deployGovernanceStrategy(aave.address, aave.address, '1000');
+    const strategy = await deployGovernanceStrategy(aave.address, stkAave.address);
 
     // Set new strategy
     await gov.connect(deployer.signer).setGovernanceStrategy(strategy.address);

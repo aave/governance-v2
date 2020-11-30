@@ -35,15 +35,13 @@ export const deployAaveGovernanceV2 = async (
 };
 
 export const deployGovernanceStrategy = async (
-  propositionToken: tEthereumAddress,
-  votingToken: tEthereumAddress,
-  propositionThreshold: string,
+  aave: tEthereumAddress,
+  stkAave: tEthereumAddress,
   verify?: boolean
 ) => {
-  const args: [tEthereumAddress, tEthereumAddress, string] = [
-    propositionToken,
-    votingToken,
-    propositionThreshold,
+  const args: [tEthereumAddress, tEthereumAddress] = [
+    aave,
+    stkAave
   ];
   return withSaveAndVerify(
     await new GovernanceStrategyFactory(await getFirstSigner()).deploy(...args),
