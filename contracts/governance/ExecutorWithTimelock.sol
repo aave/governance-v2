@@ -14,6 +14,7 @@ import {add256} from '../misc/Helpers.sol';
  * @author Aave
  **/
 contract ExecutorWithTimelock is IExecutorWithTimelock {
+  /// @dev period after the delay passed, during which a queued transaction can be executed
   uint256 public constant override GRACE_PERIOD = 14 days;
   uint256 public constant override MINIMUM_DELAY = 1 days;
   uint256 public constant override MAXIMUM_DELAY = 30 days;
@@ -23,40 +24,6 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
   uint256 private _delay;
 
   mapping(bytes32 => bool) private _queuedTransactions;
-
-  event NewPendingAdmin(address newPendingAdmin);
-  event NewAdmin(address newAdmin);
-  event NewDelay(uint256 delay);
-  event QueuedAction(
-    bytes32 actionHash,
-    address indexed target,
-    uint256 value,
-    string signature,
-    bytes data,
-    uint256 executionTime,
-    bool withDelegatecall
-  );
-
-  event CancelledAction(
-    bytes32 actionHash,
-    address indexed target,
-    uint256 value,
-    string signature,
-    bytes data,
-    uint256 executionTime,
-    bool withDelegatecall
-  );
-
-  event ExecutedAction(
-    bytes32 actionHash,
-    address indexed target,
-    uint256 value,
-    string signature,
-    bytes data,
-    uint256 executionTime,
-    bool withDelegatecall,
-    bytes resultData
-  );
 
   /**
    * @dev Constructor

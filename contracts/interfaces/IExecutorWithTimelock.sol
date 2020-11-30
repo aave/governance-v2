@@ -6,6 +6,85 @@ import {IAaveGovernanceV2} from './IAaveGovernanceV2.sol';
 
 interface IExecutorWithTimelock {
   /**
+   * @dev emitted when a new pending admin is set
+   * @param newPendingAdmin address of the new pending admin
+   **/
+  event NewPendingAdmin(address newPendingAdmin);
+
+  /**
+   * @dev emitted when a new admin is set
+   * @param newAdmin address of the new admin
+   **/
+  event NewAdmin(address newAdmin);
+
+  /**
+   * @dev emitted when a new delay (between queueing and execution) is set
+   * @param delay new delay
+   **/
+  event NewDelay(uint256 delay);
+
+  /**
+   * @dev emitted when a new (trans)action is Queued.
+   * @param actionHash hash of the action
+   * @param target address of the targeted contract
+   * @param value wei value of the transaction
+   * @param signature function signature of the transaction
+   * @param data function arguments of the transaction or callData if signature empty
+   * @param executionTime time at which to execute the transaction
+   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   **/
+  event QueuedAction(
+    bytes32 actionHash,
+    address indexed target,
+    uint256 value,
+    string signature,
+    bytes data,
+    uint256 executionTime,
+    bool withDelegatecall
+  );
+
+  /**
+   * @dev emitted when an action is Cancelled
+   * @param actionHash hash of the action
+   * @param target address of the targeted contract
+   * @param value wei value of the transaction
+   * @param signature function signature of the transaction
+   * @param data function arguments of the transaction or callData if signature empty
+   * @param executionTime time at which to execute the transaction
+   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   **/
+  event CancelledAction(
+    bytes32 actionHash,
+    address indexed target,
+    uint256 value,
+    string signature,
+    bytes data,
+    uint256 executionTime,
+    bool withDelegatecall
+  );
+
+  /**
+   * @dev emitted when an action is Cancelled
+   * @param actionHash hash of the action
+   * @param target address of the targeted contract
+   * @param value wei value of the transaction
+   * @param signature function signature of the transaction
+   * @param data function arguments of the transaction or callData if signature empty
+   * @param executionTime time at which to execute the transaction
+   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   * @param resultData the actual callData used on the target
+   **/
+  event ExecutedAction(
+    bytes32 actionHash,
+    address indexed target,
+    uint256 value,
+    string signature,
+    bytes data,
+    uint256 executionTime,
+    bool withDelegatecall,
+    bytes resultData
+  );
+  /**
    * @dev Getter of the current admin address (should be governance)
    * @return The address of the current admin 
    **/
