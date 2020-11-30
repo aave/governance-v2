@@ -5,7 +5,6 @@ import FileSync from 'lowdb/adapters/FileSync';
 import {WAD} from './constants';
 import {Wallet, ContractTransaction} from 'ethers';
 import {HardhatRuntimeEnvironment} from 'hardhat/types';
-import {BuidlerRuntimeEnvironment} from '@nomiclabs/buidler/types';
 
 export const toWad = (value: string | number) => new BigNumber(value).times(WAD).toFixed();
 
@@ -14,10 +13,8 @@ export const stringToBigNumber = (amount: string): BigNumber => new BigNumber(am
 
 export const getDb = () => low(new FileSync('./deployed-contracts.json'));
 
-export let DRE:
-  | HardhatRuntimeEnvironment
-  | BuidlerRuntimeEnvironment = {} as HardhatRuntimeEnvironment;
-export const setDRE = (_DRE: HardhatRuntimeEnvironment | BuidlerRuntimeEnvironment) => {
+export let DRE: HardhatRuntimeEnvironment = {} as HardhatRuntimeEnvironment;
+export const setDRE = (_DRE: HardhatRuntimeEnvironment) => {
   DRE = _DRE;
 };
 
@@ -36,8 +33,25 @@ export const timeLatest = async () => {
   return new BigNumber(block.timestamp);
 };
 
-export const advanceBlock = async (timestamp: number) =>
-  await DRE.ethers.provider.send('evm_mine', [timestamp]);
+export const advanceBlock = async (timestamp?: number) =>
+  await DRE.ethers.provider.send('evm_mine', timestamp ? [timestamp] : []);
+
+export const latestBlock = async () => await DRE.ethers.provider.getBlockNumber();
+
+export const advanceBlockTo = async (target: number) => {
+  const currentBlock = await latestBlock();
+  const start = Date.now();
+  let notified;
+  if (target < currentBlock)
+    throw Error(`Target block #(${target}) is lower than current block #(${currentBlock})`);
+  while ((await latestBlock()) < target) {
+    if (!notified && Date.now() - start >= 5000) {
+      notified = true;
+      console.log(`advanceBlockTo: Advancing too many blocks is causing this test to be slow.'`);
+    }
+    await advanceBlock();
+  }
+};
 
 export const increaseTime = async (secondsToIncrease: number) => {
   await DRE.ethers.provider.send('evm_increaseTime', [secondsToIncrease]);

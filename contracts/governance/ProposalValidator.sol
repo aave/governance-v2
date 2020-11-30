@@ -2,10 +2,10 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-import {IAaveGovernanceV2} from './interfaces/IAaveGovernanceV2.sol';
-import {IGovernanceStrategy} from './interfaces/IGovernanceStrategy.sol';
-import {IProposalValidator} from './interfaces/IProposalValidator.sol';
-import {add256, sub256, mul256, div256} from './Helpers.sol';
+import {IAaveGovernanceV2} from '../interfaces/IAaveGovernanceV2.sol';
+import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
+import {IProposalValidator} from '../interfaces/IProposalValidator.sol';
+import {add256, sub256, mul256, div256} from '../misc/Helpers.sol';
 
 contract ProposalValidator is IProposalValidator {
   uint256 public constant override PROPOSITION_THRESHOLD = 100; // 1%

@@ -11,6 +11,7 @@ import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import 'hardhat-gas-reporter';
 import 'hardhat-typechain';
+import 'solidity-coverage';
 
 const SKIP_LOAD = process.env.SKIP_LOAD === 'true';
 const DEFAULT_BLOCK_GAS_LIMIT = 12450000;
@@ -33,7 +34,7 @@ if (!SKIP_LOAD) {
   });
 }
 
-require(`${path.join(__dirname, 'tasks/misc')}/set-bre.ts`);
+require(`${path.join(__dirname, 'tasks/misc')}/set-DRE.ts`);
 
 const getCommonNetworkConfig = (networkName: eEthereumNetwork, networkId: number) => {
   return {
@@ -53,11 +54,22 @@ const getCommonNetworkConfig = (networkName: eEthereumNetwork, networkId: number
 
 const buidlerConfig: HardhatUserConfig = {
   solidity: {
-    version: '0.7.5',
-    settings: {
-      optimizer: {enabled: true, runs: 200},
-      evmVersion: 'istanbul',
-    },
+    compilers: [
+      {
+        version: '0.7.5',
+        settings: {
+          optimizer: {enabled: true, runs: 200},
+          evmVersion: 'istanbul',
+        },
+      },
+      {
+        version: '0.6.10',
+        settings: {
+          optimizer: {enabled: true, runs: 200},
+          evmVersion: 'istanbul',
+        },
+      },
+    ],
   },
   typechain: {
     outDir: 'types',
@@ -70,10 +82,6 @@ const buidlerConfig: HardhatUserConfig = {
     timeout: 0,
   },
   networks: {
-    coverage: {
-      url: 'http://localhost:8555',
-      chainId: COVERAGE_CHAINID,
-    },
     kovan: getCommonNetworkConfig(eEthereumNetwork.kovan, 42),
     ropsten: getCommonNetworkConfig(eEthereumNetwork.ropsten, 3),
     main: getCommonNetworkConfig(eEthereumNetwork.main, 1),

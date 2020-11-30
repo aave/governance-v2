@@ -2,13 +2,13 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-import {IVotingStrategy} from './interfaces/IVotingStrategy.sol';
-import {IExecutorWithTimelock} from './interfaces/IExecutorWithTimelock.sol';
-import {IProposalValidator} from './interfaces/IProposalValidator.sol';
-import {IGovernanceStrategy} from './interfaces/IGovernanceStrategy.sol';
-import {IAaveGovernanceV2} from './interfaces/IAaveGovernanceV2.sol';
-import {Ownable} from './Ownable.sol';
-import {isContract, add256, sub256, getChainId} from './Helpers.sol';
+import {IVotingStrategy} from '../interfaces/IVotingStrategy.sol';
+import {IExecutorWithTimelock} from '../interfaces/IExecutorWithTimelock.sol';
+import {IProposalValidator} from '../interfaces/IProposalValidator.sol';
+import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
+import {IAaveGovernanceV2} from '../interfaces/IAaveGovernanceV2.sol';
+import {Ownable} from '../dependencies/open-zeppelin/Ownable.sol';
+import {isContract, add256, sub256, getChainId} from '../misc/Helpers.sol';
 
 contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   /// @dev With logic for validation of proposition and voting
@@ -128,7 +128,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
 
     Proposal storage proposal = _proposals[proposalId];
     require(
-      IProposalValidator(address(proposal.executor)).isPropositionPowerEnough(
+      !IProposalValidator(address(proposal.executor)).isPropositionPowerEnough(
         this,
         proposal.creator,
         block.number - 1
