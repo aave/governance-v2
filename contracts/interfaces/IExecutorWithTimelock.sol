@@ -184,5 +184,5 @@ interface IExecutorWithTimelock {
     bytes memory data,
     uint256 executionTime,
     bool withDelegatecall
-  ) external returns (bytes memory);
+  ) external returns (bytes32);
 }

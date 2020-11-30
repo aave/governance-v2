@@ -12,7 +12,7 @@ import {isContract, add256, sub256, getChainId} from '../misc/Helpers.sol';
 
 /**
  * @title Governance V2 contract
- * @dev Main point of interaction with an Aave protocol's governance
+ * @dev Main point of interaction with Aave protocol's governance
  * - Create a Proposal
  * - Cancel a Proposal
  * - Queue a Proposal

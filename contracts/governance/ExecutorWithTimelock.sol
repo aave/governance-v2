@@ -14,7 +14,6 @@ import {add256} from '../misc/Helpers.sol';
  * @author Aave
  **/
 contract ExecutorWithTimelock is IExecutorWithTimelock {
-  /// @dev period after the delay passed, during which a queued transaction can be executed
   uint256 public constant override GRACE_PERIOD = 14 days;
   uint256 public constant override MINIMUM_DELAY = 1 days;
   uint256 public constant override MAXIMUM_DELAY = 30 days;
@@ -123,7 +122,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
    * @param data function arguments of the transaction or callData if signature empty
    * @param executionTime time at which to execute the transaction
    * @param withDelegatecall if true, transaction you delegate call to target, else call
-   * @return the action Hash
+   * @return the action Hash of the canceled tx
    **/
   function cancelTransaction(
     address target,

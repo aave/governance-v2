@@ -17,40 +17,6 @@ contract ExecutorWithTimelockMock is IExecutorWithTimelock {
 
   mapping(bytes32 => bool) private _queuedTransactions;
 
-  event NewPendingAdmin(address newPendingAdmin);
-  event NewAdmin(address newAdmin);
-  event NewDelay(uint256 delay);
-  event QueuedAction(
-    bytes32 actionHash,
-    address indexed target,
-    uint256 value,
-    string signature,
-    bytes data,
-    uint256 executionTime,
-    bool withDelegatecall
-  );
-
-  event CancelledAction(
-    bytes32 actionHash,
-    address indexed target,
-    uint256 value,
-    string signature,
-    bytes data,
-    uint256 executionTime,
-    bool withDelegatecall
-  );
-
-  event ExecutedAction(
-    bytes32 actionHash,
-    address indexed target,
-    uint256 value,
-    string signature,
-    bytes data,
-    uint256 executionTime,
-    bool withDelegatecall,
-    bytes resultData
-  );
-
   constructor(address admin, uint256 delay) {
     _validateDelay(delay);
     _delay = delay;
@@ -121,7 +87,7 @@ contract ExecutorWithTimelockMock is IExecutorWithTimelock {
     bytes memory data,
     uint256 executionTime,
     bool withDelegatecall
-  ) public override onlyAdmin {
+  ) public override onlyAdmin returns (bytes32) {
     bytes32 actionHash = keccak256(
       abi.encode(target, value, signature, data, executionTime, withDelegatecall)
     );
@@ -136,6 +102,7 @@ contract ExecutorWithTimelockMock is IExecutorWithTimelock {
       executionTime,
       withDelegatecall
     );
+    return actionHash;
   }
 
   function executeTransaction(
