@@ -6,7 +6,7 @@ import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
 import {IERC20} from '../interfaces/IERC20.sol';
 import {IDelegationAwareToken} from '../interfaces/IDelegationAwareToken.sol';
 
-contract AaveGovernanceStrategy is IGovernanceStrategy {
+contract GovernanceStrategy is IGovernanceStrategy {
   address public immutable AAVE;
   address public immutable STK_AAVE;
 
