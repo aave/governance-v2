@@ -3,8 +3,11 @@ pragma solidity 0.7.5;
 pragma abicoder v2;
 
 import {ExecutorWithTimelockMock} from './ExecutorWithTimelockMock.sol';
-import {VoteValidatorMock} from './VoteValidatorMock.sol';
+import {ProposalValidatorMock} from './ProposalValidatorMock.sol';
 
-contract ExecutorMock is ExecutorWithTimelockMock, VoteValidatorMock {
-  constructor(address admin, uint256 delay) ExecutorWithTimelockMock(admin, delay) VoteValidatorMock() {}
+contract ExecutorMock is ExecutorWithTimelockMock, ProposalValidatorMock {
+  constructor(address admin, uint256 delay)
+    ExecutorWithTimelockMock(admin, delay)
+    ProposalValidatorMock()
+  {}
 }

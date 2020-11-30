@@ -1,5 +1,9 @@
 # Aave Governance v2
 
+## Architecture
+
+![governance-v2-architecture](./gov-v2-architecture.png)
+
 ## Setup
 
 The repository uses Docker Compose to manage sensitive keys and load the configuration. Prior any action like test or deploy, you must run `docker-compose up` to start the `contracts-env` container, and then connect to the container console via `docker-compose exec contracts-env bash`.

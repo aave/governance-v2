@@ -4,15 +4,9 @@ import {deployGovernanceStrategy} from '../../helpers/contracts-deployments';
 
 task(`deploy:strategy`, `Deploy governance for tests and development purposes`)
   .addFlag('verify')
-  .addParam('propositionToken', '', ZERO_ADDRESS)
-  .addParam('votingToken', '', ZERO_ADDRESS)
-  .addParam('propositionThreshold', '', '10')
-  .setAction(async ({propositionThreshold, propositionToken, votingToken, verify}, _DRE) => {
+  .addParam('aave', '', ZERO_ADDRESS)
+  .addParam('stkAave', '', ZERO_ADDRESS)
+  .setAction(async ({aave, stkAave, verify}, _DRE) => {
     _DRE.run('set-DRE');
-    return await deployGovernanceStrategy(
-      propositionToken,
-      votingToken,
-      propositionThreshold,
-      verify
-    );
+    return await deployGovernanceStrategy(aave, stkAave, verify);
   });

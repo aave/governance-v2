@@ -5,36 +5,25 @@ pragma abicoder v2;
 import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
 import {IERC20} from '../interfaces/IERC20.sol';
 import {IDelegationAwareToken} from '../interfaces/IDelegationAwareToken.sol';
-import {mul256, div256} from '../misc/Helpers.sol';
 
 contract GovernanceStrategy is IGovernanceStrategy {
-  address public immutable PROPOSITION_TOKEN;
-  address public immutable VOTING_TOKEN;
-  uint256 public immutable PROPOSITION_THRESHOLD; // With ONE_HUNDRED_WITH_PRECISION being 100%
-  uint256 public constant ONE_HUNDRED_WITH_PRECISION = 10000;
+  address public immutable AAVE;
+  address public immutable STK_AAVE;
 
-  constructor(
-    address propositionToken,
-    address votingToken,
-    uint256 propositionThreshold
-  ) {
-    PROPOSITION_TOKEN = propositionToken;
-    VOTING_TOKEN = votingToken;
-    PROPOSITION_THRESHOLD = propositionThreshold;
+  constructor(address aave, address stkAave) {
+    AAVE = aave;
+    STK_AAVE = stkAave;
   }
 
-  function validateCreatorOfProposal(address user, uint256 blockNumber) external view override {
-    require(isPropositionPowerEnough(user, blockNumber), 'NOT_ENOUGH_PROPOSITION_POWER');
+  function getTotalPropositionSupplyAt(uint256 blockNumber) public view override returns (uint256) {
+    // The AAVE locked in the stkAAVE is not taken into account, so the calculation is:
+    //  aggregatedSupply = aaveSupply + stkAaveSupply - aaveLockedInStkAave
+    // As aaveLockedInStkAave = stkAaveSupply => aggregatedSupply = aaveSupply + stkAaveSupply - stkAaveSupply = aaveSupply
+    return IERC20(AAVE).totalSupplyAt(blockNumber);
   }
 
-  function isPropositionPowerEnough(address user, uint256 blockNumber)
-    public
-    view
-    override
-    returns (bool)
-  {
-    return
-      getPropositionPowerAt(user, blockNumber) >= getMinimumPropositionPowerNeeded(blockNumber);
+  function getTotalVotingSupplyAt(uint256 blockNumber) public view override returns (uint256) {
+    return getTotalPropositionSupplyAt(blockNumber);
   }
 
   function getPropositionPowerAt(address user, uint256 blockNumber)
@@ -44,32 +33,7 @@ contract GovernanceStrategy is IGovernanceStrategy {
     returns (uint256)
   {
     return
-      IDelegationAwareToken(PROPOSITION_TOKEN).getPowerAtBlock(
-        user,
-        blockNumber,
-        IDelegationAwareToken.DelegationType.PROPOSITION_POWER
-      );
-  }
-
-  function getMinimumPropositionPowerNeeded(uint256 blockNumber)
-    public
-    view
-    override
-    returns (uint256)
-  {
-    return
-      div256(
-        mul256(getTotalPropositionSupplyAt(blockNumber), PROPOSITION_THRESHOLD),
-        ONE_HUNDRED_WITH_PRECISION
-      );
-  }
-
-  function getTotalPropositionSupplyAt(uint256 blockNumber) public view override returns (uint256) {
-    return IERC20(PROPOSITION_TOKEN).totalSupplyAt(blockNumber);
-  }
-
-  function getTotalVotingSupplyAt(uint256 blockNumber) public view override returns (uint256) {
-    return getTotalPropositionSupplyAt(blockNumber);
+      getPowerByTypeAt(user, blockNumber, IDelegationAwareToken.DelegationType.PROPOSITION_POWER);
   }
 
   function getVotingPowerAt(address user, uint256 blockNumber)
@@ -78,11 +42,16 @@ contract GovernanceStrategy is IGovernanceStrategy {
     override
     returns (uint256)
   {
+    return getPowerByTypeAt(user, blockNumber, IDelegationAwareToken.DelegationType.VOTING_POWER);
+  }
+
+  function getPowerByTypeAt(
+    address user,
+    uint256 blockNumber,
+    IDelegationAwareToken.DelegationType powerType
+  ) internal view returns (uint256) {
     return
-      IDelegationAwareToken(VOTING_TOKEN).getPowerAtBlock(
-        user,
-        blockNumber,
-        IDelegationAwareToken.DelegationType.VOTING_POWER
-      );
+      IDelegationAwareToken(AAVE).getPowerAtBlock(user, blockNumber, powerType) +
+      IDelegationAwareToken(STK_AAVE).getPowerAtBlock(user, blockNumber, powerType);
   }
 }
