@@ -16,11 +16,9 @@ task(`migrate:dev`, `Deploy governance for tests and development purposes`)
     });
 
     // Deploy strategy
-    const propositionThreshold = '10';
     const strategy = await _DRE.run('deploy:strategy', {
-      propositionToken: token.address,
-      votingToken: token.address,
-      propositionThreshold,
+      aave: token.address,
+      stkAave: token.address,
     });
 
     // Deploy governance v2
