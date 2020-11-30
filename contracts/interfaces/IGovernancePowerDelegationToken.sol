@@ -2,7 +2,7 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-interface IDelegationAwareToken {
+interface IGovernancePowerDelegationToken {
   enum DelegationType {VOTING_POWER, PROPOSITION_POWER}
 
   function getPowerAtBlock(

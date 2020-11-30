@@ -4,7 +4,7 @@ pragma abicoder v2;
 
 import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
 import {IERC20} from '../interfaces/IERC20.sol';
-import {IDelegationAwareToken} from '../interfaces/IDelegationAwareToken.sol';
+import {IGovernancePowerDelegationToken} from '../interfaces/IGovernancePowerDelegationToken.sol';
 
 /**
  * @title Governance Strategy contract
@@ -70,7 +70,7 @@ contract GovernanceStrategy is IGovernanceStrategy {
     returns (uint256)
   {
     return
-      _getPowerByTypeAt(user, blockNumber, IDelegationAwareToken.DelegationType.PROPOSITION_POWER);
+      _getPowerByTypeAt(user, blockNumber, IGovernancePowerDelegationToken.DelegationType.PROPOSITION_POWER);
   }
 
   /**
@@ -85,16 +85,16 @@ contract GovernanceStrategy is IGovernanceStrategy {
     override
     returns (uint256)
   {
-    return _getPowerByTypeAt(user, blockNumber, IDelegationAwareToken.DelegationType.VOTING_POWER);
+    return _getPowerByTypeAt(user, blockNumber, IGovernancePowerDelegationToken.DelegationType.VOTING_POWER);
   }
 
   function _getPowerByTypeAt(
     address user,
     uint256 blockNumber,
-    IDelegationAwareToken.DelegationType powerType
+    IGovernancePowerDelegationToken.DelegationType powerType
   ) internal view returns (uint256) {
     return
-      IDelegationAwareToken(AAVE).getPowerAtBlock(user, blockNumber, powerType) +
-      IDelegationAwareToken(STK_AAVE).getPowerAtBlock(user, blockNumber, powerType);
+      IGovernancePowerDelegationToken(AAVE).getPowerAtBlock(user, blockNumber, powerType) +
+      IGovernancePowerDelegationToken(STK_AAVE).getPowerAtBlock(user, blockNumber, powerType);
   }
 }
