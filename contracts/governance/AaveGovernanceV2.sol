@@ -90,10 +90,12 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     );
     require(_whitelistedExecutors[address(executor)], 'EXECUTOR_NOT_WHITELISTED');
 
-    IProposalValidator(address(executor)).validateCreatorOfProposal(
-      this,
-      msg.sender,
-      block.number - 1
+    require(
+      IProposalValidator(address(executor)).validateCreatorOfProposal(
+        this,
+        msg.sender,
+        block.number - 1
+      ), 'PROPOSITION_CREATION_INVALID'
     );
 
     CreateVars memory vars;
@@ -155,12 +157,13 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
 
     Proposal storage proposal = _proposals[proposalId];
     require(
-      !IProposalValidator(address(proposal.executor)).isPropositionPowerEnough(
-        this,
-        proposal.creator,
-        block.number - 1
-      ),
-      'CREATOR_ABOVE_THRESHOLD'
+      msg.sender == _guardian ||
+        IProposalValidator(address(proposal.executor)).validateProposalCancellation(
+          this,
+          proposal.creator,
+          block.number - 1
+        )
+      , 'PROPOSITION_CANCELLATION_INVALID'
     );
     proposal.canceled = true;
     for (uint256 i = 0; i < proposal.targets.length; i++) {

@@ -26,16 +26,30 @@ contract ProposalValidator is IProposalValidator {
    * @param governance Governance Contract
    * @param user Address of the proposal creator
    * @param blockNumber Block Number against which to make the test (e.g proposal creation block -1).
+   * @return boolean, true if can be created
    **/
   function validateCreatorOfProposal(
     IAaveGovernanceV2 governance,
     address user,
     uint256 blockNumber
-  ) external view override {
-    require(
-      isPropositionPowerEnough(governance, user, blockNumber),
-      'NOT_ENOUGH_PROPOSITION_POWER'
-    );
+  ) external view override returns (bool) {
+    return isPropositionPowerEnough(governance, user, blockNumber);
+  }
+
+  /**
+   * @dev Called to validate the cancellation of a proposal
+   * Needs to creator to have lost proposition power threashold
+   * @param governance Governance Contract
+   * @param user Address of the proposal creator
+   * @param blockNumber Block Number against which to make the test (e.g proposal creation block -1).
+   * @return boolean, true if can be cancelled
+   **/
+  function validateProposalCancellation(
+    IAaveGovernanceV2 governance,
+    address user,
+    uint256 blockNumber
+  ) external view override returns (bool) {
+    return !isPropositionPowerEnough(governance, user, blockNumber);
   }
 
   /**

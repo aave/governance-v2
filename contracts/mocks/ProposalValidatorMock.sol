@@ -18,11 +18,16 @@ contract ProposalValidatorMock is IProposalValidator {
     IAaveGovernanceV2 governance,
     address user,
     uint256 blockNumber
-  ) external view override {
-    require(
-      isPropositionPowerEnough(governance, user, blockNumber),
-      'NOT_ENOUGH_PROPOSITION_POWER'
-    );
+  ) external view override returns (bool) {
+    return isPropositionPowerEnough(governance, user, blockNumber);
+  }
+
+  function validateProposalCancellation(
+    IAaveGovernanceV2 governance,
+    address user,
+    uint256 blockNumber
+  ) external view override returns (bool) {
+    return !isPropositionPowerEnough(governance, user, blockNumber);
   }
 
   function isPropositionPowerEnough(

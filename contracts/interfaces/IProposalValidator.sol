@@ -11,12 +11,26 @@ interface IProposalValidator {
    * @param governance Governance Contract
    * @param user Address of the proposal creator
    * @param blockNumber Block Number against which to make the test (e.g proposal creation block -1).
+   * @return boolean, true if can be created
    **/
   function validateCreatorOfProposal(
     IAaveGovernanceV2 governance,
     address user,
     uint256 blockNumber
-  ) external view;
+  ) external view returns (bool);
+
+  /**
+   * @dev Called to validate the cancellation of a proposal
+   * @param governance Governance Contract
+   * @param user Address of the proposal creator
+   * @param blockNumber Block Number against which to make the test (e.g proposal creation block -1).
+   * @return boolean, true if can be cancelled
+   **/
+  function validateProposalCancellation(
+    IAaveGovernanceV2 governance,
+    address user,
+    uint256 blockNumber
+  ) external view returns (bool);
 
   /**
    * @dev Returns whether a user has enough Proposition Power to make a proposal.
