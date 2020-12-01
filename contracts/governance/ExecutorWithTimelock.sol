@@ -92,7 +92,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
    * @param signature function signature of the transaction
    * @param data function arguments of the transaction or callData if signature empty
    * @param executionTime time at which to execute the transaction
-   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   * @param withDelegatecall boolean, true = transaction delegatecalls the target, else calls the target
    * @return the action Hash
    **/
   function queueTransaction(
@@ -121,7 +121,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
    * @param signature function signature of the transaction
    * @param data function arguments of the transaction or callData if signature empty
    * @param executionTime time at which to execute the transaction
-   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   * @param withDelegatecall boolean, true = transaction delegatecalls the target, else calls the target
    * @return the action Hash of the canceled tx
    **/
   function cancelTransaction(
@@ -156,7 +156,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
    * @param signature function signature of the transaction
    * @param data function arguments of the transaction or callData if signature empty
    * @param executionTime time at which to execute the transaction
-   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   * @param withDelegatecall boolean, true = transaction delegatecalls the target, else calls the target
    * @return the callData executed as memory bytes
    **/
   function executeTransaction(

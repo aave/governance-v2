@@ -31,25 +31,20 @@ contract GovernanceStrategy is IGovernanceStrategy {
   }
 
   /**
-   * @dev Returns the total supply of Outstanding Proposition Tokens 
-   * Outstanding Tokens = Outstanding AAVE       + Outstanding stkAAVE
-   * Outstanding Tokens = # AAVE - # staked AAVE + # stkAAVE 
-   * Outstanding Tokens = # AAVE
+   * @dev Returns the total supply of Proposition Tokens Available for Governance
+   * = AAVE Available for governance      + stkAAVE available
+   * The supply of AAVE staked in stkAAVE are not taken into account so:
+   * = (Supply of AAVE - AAVE in stkAAVE) + (Supply of stkAAVE)
+   * = Supply of AAVE, Since the supply of stkAAVE is equal to the number of AAVE staked
    * @param blockNumber Blocknumber at which to evaluate
    * @return total supply at blockNumber
    **/
   function getTotalPropositionSupplyAt(uint256 blockNumber) public view override returns (uint256) {
-    // The AAVE locked in the stkAAVE is not taken into account, so the calculation is:
-    //  aggregatedSupply = aaveSupply + stkAaveSupply - aaveLockedInStkAave
-    // As aaveLockedInStkAave = stkAaveSupply => aggregatedSupply = aaveSupply + stkAaveSupply - stkAaveSupply = aaveSupply
     return IERC20(AAVE).totalSupplyAt(blockNumber);
   }
 
   /**
    * @dev Returns the total supply of Outstanding Voting Tokens 
-   * Outstanding Tokens = Outstanding AAVE       + Outstanding stkAAVE
-   * Outstanding Tokens = # AAVE - # staked AAVE + # stkAAVE 
-   * Outstanding Tokens = # AAVE
    * @param blockNumber Blocknumber at which to evaluate
    * @return total supply at blockNumber
    **/

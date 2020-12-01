@@ -31,7 +31,7 @@ interface IExecutorWithTimelock {
    * @param signature function signature of the transaction
    * @param data function arguments of the transaction or callData if signature empty
    * @param executionTime time at which to execute the transaction
-   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   * @param withDelegatecall boolean, true = transaction delegatecalls the target, else calls the target
    **/
   event QueuedAction(
     bytes32 actionHash,
@@ -51,7 +51,7 @@ interface IExecutorWithTimelock {
    * @param signature function signature of the transaction
    * @param data function arguments of the transaction or callData if signature empty
    * @param executionTime time at which to execute the transaction
-   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   * @param withDelegatecall boolean, true = transaction delegatecalls the target, else calls the target
    **/
   event CancelledAction(
     bytes32 actionHash,
@@ -71,7 +71,7 @@ interface IExecutorWithTimelock {
    * @param signature function signature of the transaction
    * @param data function arguments of the transaction or callData if signature empty
    * @param executionTime time at which to execute the transaction
-   * @param withDelegatecall if true, transaction you delegate call to target, else call
+   * @param withDelegatecall boolean, true = transaction delegatecalls the target, else calls the target
    * @param resultData the actual callData used on the target
    **/
   event ExecutedAction(
@@ -138,8 +138,7 @@ interface IExecutorWithTimelock {
    * @param signature function signature of the transaction
    * @param data function arguments of the transaction or callData if signature empty
    * @param executionTime time at which to execute the transaction
-   * @param withDelegatecall if true, transaction you delegate call to target, else call
-   * @return the action Hash
+   * @param withDelegatecall boolean, true = transaction delegatecalls the target, else calls the target
    **/
   function queueTransaction(
     address target,
@@ -156,8 +155,7 @@ interface IExecutorWithTimelock {
    * @param signature function signature of the transaction
    * @param data function arguments of the transaction or callData if signature empty
    * @param executionTime time at which to execute the transaction
-   * @param withDelegatecall if true, transaction you delegate call to target, else call
-   * @return the callData executed as memory bytes
+   * @param withDelegatecall boolean, true = transaction delegatecalls the target, else calls the target
    **/
   function executeTransaction(
     address target,
@@ -174,8 +172,7 @@ interface IExecutorWithTimelock {
    * @param signature function signature of the transaction
    * @param data function arguments of the transaction or callData if signature empty
    * @param executionTime time at which to execute the transaction
-   * @param withDelegatecall if true, transaction you delegate call to target, else call
-   * @return the action Hash
+   * @param withDelegatecall boolean, true = transaction delegatecalls the target, else calls the target
    **/
   function cancelTransaction(
     address target,

@@ -63,13 +63,13 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   }
 
   /**
-   * @dev Creates a Proposal (needs Proposition Power of creator > Threshold)
+   * @dev Creates a Proposal (needs to be validated by the Proposal Validator)
    * @param executor The ExecutorWithTimelock contract that will execute the proposal
    * @param targets list of contracts called by proposal's associated transactions
    * @param values list of value in wei for each propoposal's associated transaction
    * @param signatures list of function signatures (can be empty) to be used when created the callData
    * @param calldatas list of calldatas: if associated signature empty, calldata ready, else calldata is arguments
-   * @param withDelegatecalls if true, transaction delegatecalls the taget, else calls the target
+   * @param withDelegatecalls boolean, true = transaction delegatecalls the taget, else calls the target
    * @param ipfsHash IPFS hash of the proposal
    **/
   function create(

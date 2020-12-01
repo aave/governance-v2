@@ -62,7 +62,7 @@ interface IAaveGovernanceV2 {
    * @param values list of value in wei for each propoposal's associated transaction
    * @param signatures list of function signatures (can be empty) to be used when created the callData
    * @param calldatas list of calldatas: if associated signature empty, calldata ready, else calldata is arguments
-   * @param withDelegatecalls if true, transaction delegatecalls the taget, else calls the target
+   * @param withDelegatecalls boolean, true = transaction delegatecalls the taget, else calls the target
    * @param startBlock block number when vote starts
    * @param endBlock block number when vote ends
    * @param strategy address of the governanceStrategy contract
@@ -106,7 +106,7 @@ interface IAaveGovernanceV2 {
    * @dev emitted when a vote is registered
    * @param id Id of the proposal
    * @param voter address of the voter
-   * @param support if true, vote is for proposal
+   * @param support boolean, true = vote for, false = vote against
    * @param votingPower Power of the voter/vote
    **/
   event VoteEmitted(uint256 id, address indexed voter, bool support, uint256 votingPower);
