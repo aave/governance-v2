@@ -25,7 +25,6 @@ import {isContract, getChainId} from '../misc/Helpers.sol';
 contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   using SafeMath for uint256;
 
-  /// @dev With logic for validation of proposition and voting
   address private _governanceStrategy;
   uint256 private _votingDelay;
 
@@ -88,10 +87,12 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     require(
       targets.length == values.length &&
         targets.length == signatures.length &&
-        targets.length == calldatas.length,
+        targets.length == calldatas.length &&
+        targets.length == withDelegatecalls.length,
       'INCONSISTENT_PARAMS_LENGTH'
     );
-    require(_authorizedExecutors[address(executor)], 'EXECUTOR_NOT_AUTHORIZED');
+
+    require(isExecutorAuthorized(address(executor)), 'EXECUTOR_NOT_AUTHORIZED');
 
     require(
       IProposalValidator(address(executor)).validateCreatorOfProposal(
@@ -151,8 +152,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   function cancel(uint256 proposalId) external override {
     ProposalState state = getProposalState(proposalId);
     require(
-      msg.sender == _guardian ||
-        (state != ProposalState.Executed && state != ProposalState.Canceled),
+      state != ProposalState.Executed && state != ProposalState.Canceled,
       'ONLY_BEFORE_EXECUTED'
     );
 
@@ -329,7 +329,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
    * @param executor address to evaluate as authorized executor
    * @return true if authorized
    **/
-  function isExecutorAuthorized(address executor) external view override returns (bool) {
+  function isExecutorAuthorized(address executor) public view override returns (bool) {
     return _authorizedExecutors[executor];
   }
 
