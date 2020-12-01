@@ -7,13 +7,25 @@ import {ProposalValidator} from './ProposalValidator.sol';
 
 /**
  * @title Time Locked, Validator, Executor Contract
- * @dev Contract 
+ * @dev Contract
  * - Validate Proposal creations/ cancellation
  * - Validate Vote Quorum and Vote success on proposal
  * - Queue, Execute, Cancel, successful proposals' transactions.
  * @author Aave
  **/
 contract Executor is ExecutorWithTimelock, ProposalValidator {
-  // delay = delay between queuing and execution
-  constructor(address admin, uint256 delay) ExecutorWithTimelock(admin, delay) ProposalValidator() {}
+  constructor(
+    address admin,
+    uint256 delay,
+    uint256 gracePeriod,
+    uint256 minimumDelay,
+    uint256 maximumDelay,
+    uint256 propositionThreshold,
+    uint256 voteDuration,
+    uint256 voteDifferential,
+    uint256 minimumQuorum
+  )
+    ExecutorWithTimelock(admin, delay, gracePeriod, minimumDelay, maximumDelay)
+    ProposalValidator(propositionThreshold, voteDuration, voteDifferential, minimumQuorum)
+  {}
 }

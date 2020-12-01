@@ -10,15 +10,15 @@ import {SafeMath} from '../dependencies/open-zeppelin/SafeMath.sol';
  * @title Time Locked Executor Contract, inherited by Aave Governance Executors
  * @dev Contract that can queue, execute, cancel transactions voted by Governance
  * Queued transactions can be executed after a delay and until
- * Grace period is not over. 
+ * Grace period is not over.
  * @author Aave
  **/
 contract ExecutorWithTimelock is IExecutorWithTimelock {
   using SafeMath for uint256;
 
-  uint256 public constant override GRACE_PERIOD = 14 days;
-  uint256 public constant override MINIMUM_DELAY = 1 days;
-  uint256 public constant override MAXIMUM_DELAY = 30 days;
+  uint256 public immutable override GRACE_PERIOD;
+  uint256 public immutable override MINIMUM_DELAY;
+  uint256 public immutable override MAXIMUM_DELAY;
 
   address private _admin;
   address private _pendingAdmin;
@@ -30,11 +30,25 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
    * @dev Constructor
    * @param admin admin address, that can call the main functions, (Governance)
    * @param delay minimum time between queueing and execution of proposal
+   * @param gracePeriod time after `delay` while a proposal can be executed
+   * @param minimumDelay lower threshold of `delay`, in seconds
+   * @param maximumDelay upper threhold of `delay`, in seconds
    **/
-  constructor(address admin, uint256 delay) {
-    _validateDelay(delay);
+  constructor(
+    address admin,
+    uint256 delay,
+    uint256 gracePeriod,
+    uint256 minimumDelay,
+    uint256 maximumDelay
+  ) {
+    require(delay >= minimumDelay, 'DELAY_SHORTER_THAN_MINIMUM');
+    require(delay <= maximumDelay, 'DELAY_LONGER_THAN_MAXIMUM');
     _delay = delay;
     _admin = admin;
+
+    GRACE_PERIOD = gracePeriod;
+    MINIMUM_DELAY = minimumDelay;
+    MAXIMUM_DELAY = maximumDelay;
 
     emit NewDelay(delay);
     emit NewAdmin(admin);
@@ -214,7 +228,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
 
   /**
    * @dev Getter of the current admin address (should be governance)
-   * @return The address of the current admin 
+   * @return The address of the current admin
    **/
   function getAdmin() external view override returns (address) {
     return _admin;
@@ -222,7 +236,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
 
   /**
    * @dev Getter of the current pending admin address
-   * @return The address of the pending admin 
+   * @return The address of the pending admin
    **/
   function getPendingAdmin() external view override returns (address) {
     return _pendingAdmin;
@@ -247,7 +261,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
   }
 
   /**
-   * @dev Checks whether a proposal is over its grace period 
+   * @dev Checks whether a proposal is over its grace period
    * @param governance Governance contract
    * @param proposalId Id of the proposal against which to test
    * @return true of proposal is over grace period
@@ -263,7 +277,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     return (block.timestamp > proposal.executionTime.add(GRACE_PERIOD));
   }
 
-  function _validateDelay(uint256 delay) internal pure {
+  function _validateDelay(uint256 delay) internal view {
     require(delay >= MINIMUM_DELAY, 'DELAY_SHORTER_THAN_MINIMUM');
     require(delay <= MAXIMUM_DELAY, 'DELAY_LONGER_THAN_MAXIMUM');
   }

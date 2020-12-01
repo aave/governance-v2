@@ -7,7 +7,7 @@ import {getEthersSigners} from '../../helpers/contracts-helpers';
 import {
   getAaveGovernanceV2,
   getAaveV2Mocked,
-  getExecutorMock,
+  getExecutor,
   getGovernanceStrategy,
 } from '../../helpers/contracts-getters';
 import {tEthereumAddress} from '../../helpers/types';
@@ -75,7 +75,7 @@ export async function initializeMakeSuite() {
   testEnv.stkAave = await getAaveV2Mocked();
   testEnv.gov = await getAaveGovernanceV2();
   testEnv.strategy = await getGovernanceStrategy();
-  testEnv.executor = await getExecutorMock();
+  testEnv.executor = await getExecutor();
 }
 
 export function makeSuite(name: string, tests: (testEnv: TestEnv) => void) {

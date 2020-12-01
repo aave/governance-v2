@@ -17,11 +17,34 @@ import {SafeMath} from '../dependencies/open-zeppelin/SafeMath.sol';
 contract ProposalValidator is IProposalValidator {
   using SafeMath for uint256;
 
-  uint256 public constant override PROPOSITION_THRESHOLD = 100; // 1%
-  uint256 public constant override VOTING_DURATION = 86400; // Blocks in 14 days
-  uint256 public constant override VOTE_DIFFERENTIAL = 500; // 5%
-  uint256 public constant override MINIMUM_QUORUM = 2000; // 20%
-  uint256 public constant override ONE_HUNDRED_WITH_PRECISION = 10000;
+  uint256 public immutable override PROPOSITION_THRESHOLD;
+  uint256 public immutable override VOTING_DURATION;
+  uint256 public immutable override VOTE_DIFFERENTIAL;
+  uint256 public immutable override MINIMUM_QUORUM;
+  uint256 public constant override ONE_HUNDRED_WITH_PRECISION = 10000; // Equivalent to 100%, but scaled for precision
+
+  /**
+   * @dev Constructor
+   * @param propositionThreshold minimum percentage of supply needed to submit a proposal
+   * - In ONE_HUNDRED_WITH_PRECISION units
+   * @param votingDuration duration in blocks of the voting period
+   * @param voteDifferential percentage of supply that `for` votes need to be over `against`
+   *   in order for the proposal to pass
+   * - In ONE_HUNDRED_WITH_PRECISION units
+   * @param minimumQuorum minimum percentage of the supply in FOR-voting-power need for a proposal to pass
+   * - In ONE_HUNDRED_WITH_PRECISION units
+   **/
+  constructor(
+    uint256 propositionThreshold,
+    uint256 votingDuration,
+    uint256 voteDifferential,
+    uint256 minimumQuorum
+  ) {
+    PROPOSITION_THRESHOLD = propositionThreshold;
+    VOTING_DURATION = votingDuration;
+    VOTE_DIFFERENTIAL = voteDifferential;
+    MINIMUM_QUORUM = minimumQuorum;
+  }
 
   /**
    * @dev Called to validate a proposal (e.g when creating new proposal in Governance)
@@ -119,7 +142,7 @@ contract ProposalValidator is IProposalValidator {
    **/
   function getMinimumVotingPowerNeeded(uint256 votingSupply)
     public
-    pure
+    view
     override
     returns (uint256)
   {

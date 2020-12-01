@@ -2,7 +2,6 @@ import {
   AaveGovernanceV2Factory,
   AaveTokenV2Factory,
   ExecutorFactory,
-  ExecutorMockFactory,
   GovernanceStrategyFactory,
 } from '../types';
 import {DRE, getDb} from './misc-utils';
@@ -41,12 +40,5 @@ export const getGovernanceStrategy = async (address?: tEthereumAddress) =>
 export const getExecutor = async (address?: tEthereumAddress) =>
   await ExecutorFactory.connect(
     address || (await getDb().get(`${eContractid.Executor}.${DRE.network.name}`).value()).address,
-    await getFirstSigner()
-  );
-
-export const getExecutorMock = async (address?: tEthereumAddress) =>
-  await ExecutorMockFactory.connect(
-    address ||
-      (await getDb().get(`${eContractid.ExecutorMock}.${DRE.network.name}`).value()).address,
     await getFirstSigner()
   );
