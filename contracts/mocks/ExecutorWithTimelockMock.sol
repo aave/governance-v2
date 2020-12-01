@@ -4,9 +4,11 @@ pragma abicoder v2;
 
 import {IExecutorWithTimelock} from '../interfaces/IExecutorWithTimelock.sol';
 import {IAaveGovernanceV2} from '../interfaces/IAaveGovernanceV2.sol';
-import {add256} from '../misc/Helpers.sol';
+import {SafeMath} from '../dependencies/open-zeppelin/SafeMath.sol';
 
 contract ExecutorWithTimelockMock is IExecutorWithTimelock {
+  using SafeMath for uint256;
+
   uint256 public constant override GRACE_PERIOD = 14 days;
   uint256 public constant override MINIMUM_DELAY = 0 days;
   uint256 public constant override MAXIMUM_DELAY = 30 days;
@@ -69,7 +71,7 @@ contract ExecutorWithTimelockMock is IExecutorWithTimelock {
     uint256 executionTime,
     bool withDelegatecall
   ) public override onlyAdmin returns (bytes32) {
-    require(executionTime >= add256(block.timestamp, _delay), 'EXECUTION_TIME_UNDERESTIMATED');
+    require(executionTime >= block.timestamp.add(_delay), 'EXECUTION_TIME_UNDERESTIMATED');
 
     bytes32 actionHash = keccak256(
       abi.encode(target, value, signature, data, executionTime, withDelegatecall)
@@ -118,7 +120,7 @@ contract ExecutorWithTimelockMock is IExecutorWithTimelock {
     );
     require(_queuedTransactions[actionHash], 'ACTION_NOT_QUEUED');
     require(block.timestamp >= executionTime, 'TIMELOCK_NOT_FINISHED');
-    require(block.timestamp <= add256(executionTime, GRACE_PERIOD), 'GRACE_PERIOD_FINISHED');
+    require(block.timestamp <= executionTime.add(GRACE_PERIOD), 'GRACE_PERIOD_FINISHED');
 
     _queuedTransactions[actionHash] = false;
 
@@ -180,7 +182,7 @@ contract ExecutorWithTimelockMock is IExecutorWithTimelock {
   {
     IAaveGovernanceV2.ProposalWithoutVotes memory proposal = governance.getProposalById(proposalId);
 
-    return (block.timestamp > add256(proposal.executionTime, GRACE_PERIOD));
+    return (block.timestamp > proposal.executionTime.add(GRACE_PERIOD));
   }
 
   function _validateDelay(uint256 delay) internal pure {

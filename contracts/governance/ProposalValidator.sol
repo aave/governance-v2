@@ -5,7 +5,7 @@ pragma abicoder v2;
 import {IAaveGovernanceV2} from '../interfaces/IAaveGovernanceV2.sol';
 import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
 import {IProposalValidator} from '../interfaces/IProposalValidator.sol';
-import {add256, sub256, mul256, div256} from '../misc/Helpers.sol';
+import {SafeMath} from '../dependencies/open-zeppelin/SafeMath.sol';
 
 /**
  * @title Proposal Validator Contract, inherited by  Aave Governance Executors
@@ -15,6 +15,8 @@ import {add256, sub256, mul256, div256} from '../misc/Helpers.sol';
  * @author Aave
  **/
 contract ProposalValidator is IProposalValidator {
+  using SafeMath for uint256;
+
   uint256 public constant override PROPOSITION_THRESHOLD = 100; // 1%
   uint256 public constant override VOTING_DURATION = 86400; // Blocks in 14 days
   uint256 public constant override VOTE_DIFFERENTIAL = 500; // 5%
@@ -71,7 +73,7 @@ contract ProposalValidator is IProposalValidator {
       currentGovernanceStrategy.getPropositionPowerAt(user, blockNumber) >=
       getMinimumPropositionPowerNeeded(governance, blockNumber);
   }
-  
+
   /**
    * @dev Returns the minimum Proposition Power needed to create a proposition.
    * @param governance Governance Contract
@@ -88,13 +90,10 @@ contract ProposalValidator is IProposalValidator {
       governance.getGovernanceStrategy()
     );
     return
-      div256(
-        mul256(
-          currentGovernanceStrategy.getTotalPropositionSupplyAt(blockNumber),
-          PROPOSITION_THRESHOLD
-        ),
-        ONE_HUNDRED_WITH_PRECISION
-      );
+      currentGovernanceStrategy
+        .getTotalPropositionSupplyAt(blockNumber)
+        .mul(PROPOSITION_THRESHOLD)
+        .div(ONE_HUNDRED_WITH_PRECISION);
   }
 
   /**
@@ -124,7 +123,7 @@ contract ProposalValidator is IProposalValidator {
     override
     returns (uint256)
   {
-    return div256(mul256(votingSupply, MINIMUM_QUORUM), ONE_HUNDRED_WITH_PRECISION);
+    return votingSupply.mul(MINIMUM_QUORUM).div(ONE_HUNDRED_WITH_PRECISION);
   }
 
   /**
@@ -166,10 +165,7 @@ contract ProposalValidator is IProposalValidator {
       proposal.startBlock
     );
 
-    return (div256(mul256(proposal.forVotes, ONE_HUNDRED_WITH_PRECISION), votingSupply) >
-      add256(
-        div256(mul256(proposal.againstVotes, ONE_HUNDRED_WITH_PRECISION), votingSupply),
-        VOTE_DIFFERENTIAL
-      ));
+    return (proposal.forVotes.mul(ONE_HUNDRED_WITH_PRECISION).div(votingSupply) >
+      proposal.againstVotes.mul(ONE_HUNDRED_WITH_PRECISION).div(VOTE_DIFFERENTIAL));
   }
 }
