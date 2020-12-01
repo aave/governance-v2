@@ -8,5 +8,5 @@ task(`init:gov`, `Deploy governance for tests and development purposes`)
   .setAction(async ({governance, executor}, _DRE) => {
     _DRE.run('set-DRE');
     const gov = await getAaveGovernanceV2(governance);
-    return await waitForTx(await gov.whitelistExecutors([executor]));
+    return await waitForTx(await gov.authorizeExecutors([executor]));
   });
