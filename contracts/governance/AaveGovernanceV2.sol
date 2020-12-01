@@ -144,9 +144,9 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   }
 
   /**
-   * @dev Cancels a Proposal,
-   * either at anytime by guardian
-   * or when proposal is Pending/Active and threshold no longer reached
+   * @dev Cancels a Proposal.
+   * - Callable by the _guardian with relaxed conditions, or by anybody if the conditions of
+   *   cancellation on the executor are fulfilled
    * @param proposalId id of the proposal
    **/
   function cancel(uint256 proposalId) external override {
