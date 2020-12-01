@@ -166,6 +166,8 @@ contract ProposalValidator is IProposalValidator {
     );
 
     return (proposal.forVotes.mul(ONE_HUNDRED_WITH_PRECISION).div(votingSupply) >
-      proposal.againstVotes.mul(ONE_HUNDRED_WITH_PRECISION).div(VOTE_DIFFERENTIAL));
+      proposal.againstVotes.mul(ONE_HUNDRED_WITH_PRECISION).div(votingSupply).add(
+        VOTE_DIFFERENTIAL
+      ));
   }
 }
