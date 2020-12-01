@@ -7,7 +7,7 @@ import {
   InitializableAdminUpgradeabilityProxyFactory,
   AaveTokenV1MockFactory,
   AaveTokenV2Factory,
-  ExecutorMockFactory,
+  FlashAttacksFactory,
 } from '../types';
 import {withSaveAndVerify} from './contracts-helpers';
 import {waitForTx} from './misc-utils';
@@ -48,25 +48,33 @@ export const deployGovernanceStrategy = async (
   );
 };
 
-export const deployExecutor = async (admin: tEthereumAddress, delay: string, verify?: boolean) => {
-  const args: [tEthereumAddress, string] = [admin, delay];
+export const deployExecutor = async (
+  admin: tEthereumAddress,
+  delay: string,
+  gracePeriod: string,
+  minimumDelay: string,
+  maximumDelay: string,
+  propositionThreshold: string,
+  voteDuration: string,
+  voteDifferential: string,
+  minimumQuorum: string,
+
+  verify?: boolean
+) => {
+  const args: [tEthereumAddress, string, string, string, string, string, string, string, string] = [
+    admin,
+    delay,
+    gracePeriod,
+    minimumDelay,
+    maximumDelay,
+    propositionThreshold,
+    voteDuration,
+    voteDifferential,
+    minimumQuorum,
+  ];
   return withSaveAndVerify(
     await new ExecutorFactory(await getFirstSigner()).deploy(...args),
     eContractid.Executor,
-    args,
-    verify
-  );
-};
-
-export const deployExecutorMock = async (
-  admin: tEthereumAddress,
-  delay: string,
-  verify?: boolean
-) => {
-  const args: [tEthereumAddress, string] = [admin, delay];
-  return withSaveAndVerify(
-    await new ExecutorMockFactory(await getFirstSigner()).deploy(...args),
-    eContractid.ExecutorMock,
     args,
     verify
   );
@@ -143,4 +151,19 @@ export const deployMockedStkAaveV2 = async (minter: tEthereumAddress, verify?: b
   const encodedPayloadV2 = implementationV2.interface.encodeFunctionData('initialize');
   await waitForTx(await proxy.upgradeToAndCall(implementationV2.address, encodedPayloadV2));
   return await getAaveV2Mocked(proxy.address);
+};
+
+export const deployFlashAttacks = async (
+  token: tEthereumAddress,
+  minter: tEthereumAddress,
+  governance: tEthereumAddress,
+  verify?: boolean
+) => {
+  const args: [string, string, string] = [token, minter, governance];
+  return await withSaveAndVerify(
+    await new FlashAttacksFactory(await getFirstSigner()).deploy(...args),
+    eContractid.InitializableAdminUpgradeabilityProxy,
+    args,
+    verify
+  );
 };

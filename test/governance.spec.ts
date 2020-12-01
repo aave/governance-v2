@@ -1,5 +1,5 @@
 import {expect, use} from 'chai';
-import {MAX_UINT_AMOUNT, ZERO_ADDRESS} from '../helpers/constants';
+import {ipfsBytes32Hash, MAX_UINT_AMOUNT, ZERO_ADDRESS} from '../helpers/constants';
 import {makeSuite, TestEnv} from './helpers/make-suite';
 import {solidity} from 'ethereum-waffle';
 import {BytesLike, formatEther, parseEther, splitSignature} from 'ethers/lib/utils';
@@ -9,8 +9,6 @@ import {deployGovernanceStrategy} from '../helpers/contracts-deployments';
 import {buildPermitParams, getSignatureFromTypedData} from './helpers/permit';
 import {fail} from 'assert';
 use(solidity);
-
-const ipfsBytes32Hash = '0x47858569385046d7f77f5032ae41e511b40a7fbfbd315503ba3d99a6dc885f2b';
 
 makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
   let votingDelay: BigNumber;
@@ -62,7 +60,6 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       strategy,
     } = testEnv;
     // Give enought AAVE for proposition tokens
-    console.log('min', minimumCreatePower);
     await aave.connect(minter.signer).transfer(user.address, minimumCreatePower);
 
     // Count current proposal id
@@ -263,9 +260,7 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
 
     // Unauthorize executor
     await gov.connect(deployer.signer).unauthorizeExecutors([executor.address]);
-    const isAuthorized = await gov
-      .connect(deployer.signer)
-      .isExecutorAuthorized(executor.address);
+    const isAuthorized = await gov.connect(deployer.signer).isExecutorAuthorized(executor.address);
 
     expect(isAuthorized).to.equal(false);
   });
@@ -279,9 +274,7 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
 
     // Authorize
     await gov.connect(deployer.signer).authorizeExecutors([executor.address]);
-    const isAuthorized = await gov
-      .connect(deployer.signer)
-      .isExecutorAuthorized(executor.address);
+    const isAuthorized = await gov.connect(deployer.signer).isExecutorAuthorized(executor.address);
 
     expect(isAuthorized).to.equal(true);
   });
