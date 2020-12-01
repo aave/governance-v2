@@ -8,7 +8,8 @@ import {IProposalValidator} from '../interfaces/IProposalValidator.sol';
 import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
 import {IAaveGovernanceV2} from '../interfaces/IAaveGovernanceV2.sol';
 import {Ownable} from '../dependencies/open-zeppelin/Ownable.sol';
-import {isContract, add256, sub256, getChainId} from '../misc/Helpers.sol';
+import {SafeMath} from '../dependencies/open-zeppelin/SafeMath.sol';
+import {isContract, getChainId} from '../misc/Helpers.sol';
 
 /**
  * @title Governance V2 contract
@@ -22,6 +23,8 @@ import {isContract, add256, sub256, getChainId} from '../misc/Helpers.sol';
  * @author Aave
  **/
 contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
+  using SafeMath for uint256;
+
   /// @dev With logic for validation of proposition and voting
   address private _governanceStrategy;
   uint256 private _votingDelay;
@@ -95,16 +98,14 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
         this,
         msg.sender,
         block.number - 1
-      ), 'PROPOSITION_CREATION_INVALID'
+      ),
+      'PROPOSITION_CREATION_INVALID'
     );
 
     CreateVars memory vars;
 
-    vars.startBlock = add256(block.number, _votingDelay);
-    vars.endBlock = add256(
-      vars.startBlock,
-      IProposalValidator(address(executor)).VOTING_DURATION()
-    );
+    vars.startBlock = block.number.add(_votingDelay);
+    vars.endBlock = vars.startBlock.add(IProposalValidator(address(executor)).VOTING_DURATION());
 
     vars.previousProposalsCount = _proposalsCount;
 
@@ -162,8 +163,8 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
           this,
           proposal.creator,
           block.number - 1
-        )
-      , 'PROPOSITION_CANCELLATION_INVALID'
+        ),
+      'PROPOSITION_CANCELLATION_INVALID'
     );
     proposal.canceled = true;
     for (uint256 i = 0; i < proposal.targets.length; i++) {
@@ -187,7 +188,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   function queue(uint256 proposalId) external override {
     require(getProposalState(proposalId) == ProposalState.Succeeded, 'INVALID_STATE_FOR_QUEUE');
     Proposal storage proposal = _proposals[proposalId];
-    uint256 executionTime = add256(block.timestamp, proposal.executor.getDelay());
+    uint256 executionTime = block.timestamp.add(proposal.executor.getDelay());
     for (uint256 i = 0; i < proposal.targets.length; i++) {
       _queueOrRevert(
         proposal.executor,
@@ -461,9 +462,9 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     );
 
     if (support) {
-      proposal.forVotes = add256(proposal.forVotes, votingPower);
+      proposal.forVotes = proposal.forVotes.add(votingPower);
     } else {
-      proposal.againstVotes = add256(proposal.againstVotes, votingPower);
+      proposal.againstVotes = proposal.againstVotes.add(votingPower);
     }
 
     vote.support = support;

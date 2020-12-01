@@ -2,37 +2,6 @@
 pragma solidity 0.7.5;
 pragma abicoder v2;
 
-function add256(uint256 a, uint256 b) pure returns (uint256) {
-  uint256 c = a + b;
-  require(c >= a, 'addition overflow');
-  return c;
-}
-
-function sub256(uint256 a, uint256 b) pure returns (uint256) {
-  require(b <= a, 'subtraction underflow');
-  return a - b;
-}
-
-// TODO review
-function mul256(uint256 a, uint256 b) pure returns (uint256) {
-  if (a == 0) {
-    return 0;
-  }
-
-  uint256 c = a * b;
-  require(c / a == b, 'SafeMath: multiplication overflow');
-
-  return c;
-}
-
-// TODO review
-function div256(uint256 a, uint256 b) pure returns (uint256) {
-  require(b > 0, 'SafeMath: division by zero');
-  uint256 c = a / b;
-
-  return c;
-}
-
 function getChainId() pure returns (uint256) {
   uint256 chainId;
   assembly {

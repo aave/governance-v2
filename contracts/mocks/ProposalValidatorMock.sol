@@ -5,9 +5,11 @@ pragma abicoder v2;
 import {IAaveGovernanceV2} from '../interfaces/IAaveGovernanceV2.sol';
 import {IGovernanceStrategy} from '../interfaces/IGovernanceStrategy.sol';
 import {IProposalValidator} from '../interfaces/IProposalValidator.sol';
-import {add256, sub256, mul256, div256} from '../misc/Helpers.sol';
+import {SafeMath} from '../dependencies/open-zeppelin/SafeMath.sol';
 
 contract ProposalValidatorMock is IProposalValidator {
+  using SafeMath for uint256;
+
   uint256 public constant override PROPOSITION_THRESHOLD = 100; // 1%
   uint256 public constant override VOTING_DURATION = 5; // Blocks in 14 days
   uint256 public constant override VOTE_DIFFERENTIAL = 500; // 5%
@@ -52,14 +54,12 @@ contract ProposalValidatorMock is IProposalValidator {
     IGovernanceStrategy currentGovernanceStrategy = IGovernanceStrategy(
       governance.getGovernanceStrategy()
     );
+
     return
-      div256(
-        mul256(
-          currentGovernanceStrategy.getTotalPropositionSupplyAt(blockNumber),
-          PROPOSITION_THRESHOLD
-        ),
-        ONE_HUNDRED_WITH_PRECISION
-      );
+      currentGovernanceStrategy
+        .getTotalPropositionSupplyAt(blockNumber)
+        .mul(PROPOSITION_THRESHOLD)
+        .div(ONE_HUNDRED_WITH_PRECISION);
   }
 
   function isProposalPassed(IAaveGovernanceV2 governance, uint256 proposalId)
@@ -78,7 +78,7 @@ contract ProposalValidatorMock is IProposalValidator {
     override
     returns (uint256)
   {
-    return div256(mul256(votingSupply, MINIMUM_QUORUM), ONE_HUNDRED_WITH_PRECISION);
+    return votingSupply.mul(MINIMUM_QUORUM).div(ONE_HUNDRED_WITH_PRECISION);
   }
 
   function isQuorumValid(IAaveGovernanceV2 governance, uint256 proposalId)
@@ -106,9 +106,8 @@ contract ProposalValidatorMock is IProposalValidator {
       proposal.startBlock
     );
 
-    return (div256(mul256(proposal.forVotes, ONE_HUNDRED_WITH_PRECISION), votingSupply) >
-      add256(
-        div256(mul256(proposal.againstVotes, ONE_HUNDRED_WITH_PRECISION), votingSupply),
+    return (proposal.forVotes.mul(ONE_HUNDRED_WITH_PRECISION).div(votingSupply) >
+      proposal.againstVotes.mul(ONE_HUNDRED_WITH_PRECISION).div(votingSupply).add(
         VOTE_DIFFERENTIAL
       ));
   }
