@@ -252,32 +252,32 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     expect(govVotingDelay).to.equal('10');
   });
 
-  it('Blacklist executor', async () => {
+  it('Unauthorize executor', async () => {
     const {gov, deployer, executor} = testEnv;
 
-    // Blacklist
-    await gov.connect(deployer.signer).blacklistExecutors([executor.address]);
-    const isWhitelisted = await gov
+    // Unauthorize executor
+    await gov.connect(deployer.signer).unauthorizeExecutors([executor.address]);
+    const isAuthorized = await gov
       .connect(deployer.signer)
-      .isExecutorWhitelisted(executor.address);
+      .isExecutorAuthorized(executor.address);
 
-    expect(isWhitelisted).to.equal(false);
+    expect(isAuthorized).to.equal(false);
   });
 
-  it('Whitelist executor', async () => {
+  it('Authorize executor', async () => {
     const {
       gov,
       deployer, // is owner of gov
       executor,
     } = testEnv;
 
-    // Whitelist
-    await gov.connect(deployer.signer).whitelistExecutors([executor.address]);
-    const isWhitelisted = await gov
+    // Authorize
+    await gov.connect(deployer.signer).authorizeExecutors([executor.address]);
+    const isAuthorized = await gov
       .connect(deployer.signer)
-      .isExecutorWhitelisted(executor.address);
+      .isExecutorAuthorized(executor.address);
 
-    expect(isWhitelisted).to.equal(true);
+    expect(isAuthorized).to.equal(true);
   });
 
   it('Abdicate guardian', async () => {

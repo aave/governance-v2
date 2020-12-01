@@ -115,9 +115,9 @@ interface IAaveGovernanceV2 {
 
   event VotingDelayChanged(uint256 newVotingDelay, address indexed initiatorChange);
 
-  event ExecutorWhitelisted(address executor);
+  event ExecutorAuthorized(address executor);
 
-  event ExecutorBlacklisted(address executor);
+  event ExecutorUnauthorized(address executor);
 
   /**
    * @dev Creates a Proposal (needs Proposition Power of creator > Threshold)
@@ -200,13 +200,13 @@ interface IAaveGovernanceV2 {
    * @dev Add new addresses to the list of authorized executors
    * @param executors list of new addresses to be authorized executors
    **/
-  function whitelistExecutors(address[] memory executors) external;
+  function authorizeExecutors(address[] memory executors) external;
 
   /**
    * @dev Remove addresses to the list of authorized executors
    * @param executors list of addresses to be removed as authorized executors
    **/
-  function blacklistExecutors(address[] memory executors) external;
+  function unauthorizeExecutors(address[] memory executors) external;
 
   /**
    * @dev Let the guardian abdicate from its priviledged rights
@@ -231,7 +231,7 @@ interface IAaveGovernanceV2 {
    * @param executor address to evaluate as authorized executor
    * @return true if authorized
    **/
-  function isExecutorWhitelisted(address executor) external view returns (bool);
+  function isExecutorAuthorized(address executor) external view returns (bool);
 
   /**
    * @dev Getter the address of the guardian, that can mainly cancel proposals

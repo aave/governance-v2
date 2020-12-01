@@ -28,7 +28,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
 
   uint256 private _proposalsCount;
   mapping(uint256 => Proposal) private _proposals;
-  mapping(address => bool) private _whitelistedExecutors;
+  mapping(address => bool) private _authorizedExecutors;
 
   address private _guardian;
 
@@ -53,7 +53,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     _setVotingDelay(votingDelay);
     _guardian = guardian;
 
-    whitelistExecutors(executors);
+    authorizeExecutors(executors);
   }
 
   struct CreateVars {
@@ -88,7 +88,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
         targets.length == calldatas.length,
       'INCONSISTENT_PARAMS_LENGTH'
     );
-    require(_whitelistedExecutors[address(executor)], 'EXECUTOR_NOT_WHITELISTED');
+    require(_authorizedExecutors[address(executor)], 'EXECUTOR_NOT_AUTHORIZED');
 
     require(
       IProposalValidator(address(executor)).validateCreatorOfProposal(
@@ -283,9 +283,9 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
    * @dev Add new addresses to the list of authorized executors
    * @param executors list of new addresses to be authorized executors
    **/
-  function whitelistExecutors(address[] memory executors) public override onlyOwner {
+  function authorizeExecutors(address[] memory executors) public override onlyOwner {
     for (uint256 i = 0; i < executors.length; i++) {
-      _whitelistExecutor(executors[i]);
+      _authorizeExecutor(executors[i]);
     }
   }
 
@@ -293,9 +293,9 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
    * @dev Remove addresses to the list of authorized executors
    * @param executors list of addresses to be removed as authorized executors
    **/
-  function blacklistExecutors(address[] memory executors) public override onlyOwner {
+  function unauthorizeExecutors(address[] memory executors) public override onlyOwner {
     for (uint256 i = 0; i < executors.length; i++) {
-      _blacklistExecutor(executors[i]);
+      _unauthorizeExecutor(executors[i]);
     }
   }
 
@@ -328,8 +328,8 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
    * @param executor address to evaluate as authorized executor
    * @return true if authorized
    **/
-  function isExecutorWhitelisted(address executor) external view override returns (bool) {
-    return _whitelistedExecutors[executor];
+  function isExecutorAuthorized(address executor) external view override returns (bool) {
+    return _authorizedExecutors[executor];
   }
 
   /**
@@ -491,13 +491,13 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
     emit VotingDelayChanged(votingDelay, msg.sender);
   }
 
-  function _whitelistExecutor(address executor) internal {
-    _whitelistedExecutors[executor] = true;
-    emit ExecutorWhitelisted(executor);
+  function _authorizeExecutor(address executor) internal {
+    _authorizedExecutors[executor] = true;
+    emit ExecutorAuthorized(executor);
   }
 
-  function _blacklistExecutor(address executor) internal {
-    _whitelistedExecutors[executor] = false;
-    emit ExecutorBlacklisted(executor);
+  function _unauthorizeExecutor(address executor) internal {
+    _authorizedExecutors[executor] = false;
+    emit ExecutorUnauthorized(executor);
   }
 }

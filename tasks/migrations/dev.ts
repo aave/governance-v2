@@ -36,7 +36,7 @@ task(`migrate:dev`, `Deploy governance for tests and development purposes`)
       verify,
     });
 
-    // Whitelist executor
+    // authorize executor
     await _DRE.run('init:gov', {governance: governance.address, executor: executor.address});
 
     if (!silent) {
