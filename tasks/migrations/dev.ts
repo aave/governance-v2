@@ -38,14 +38,14 @@ task(`migrate:dev`, `Deploy governance for tests and development purposes`)
     });
 
     // Deploy executor
-    const delay = '60'; // 60 seconds
+    const delay = '60'; // 60 blocks
     const gracePeriod = ONE_DAY.mul('14').toString();
     const minimumDelay = '0';
     const maximumDelay = ONE_DAY.mul('30').toString();
-    const propositionThreshold = '100';
+    const propositionThreshold = '100'; //  1% proposition 
     const voteDuration = '5'; // 5 blocks, to prevent to hang local EVM in testing
-    const voteDifferential = '500';
-    const minimumQuorum = '2000';
+    const voteDifferential = '500'; // 5%
+    const minimumQuorum = '2000'; // 20%
 
     const executor = await _DRE.run('deploy:executor', {
       admin: governance.address,
