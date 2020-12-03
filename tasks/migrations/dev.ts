@@ -38,7 +38,7 @@ task(`migrate:dev`, `Deploy governance for tests and development purposes`)
     });
 
     // Deploy executor
-    const delay = '60'; // 60 blocks
+    const delay = '60'; // 60 secs
     const gracePeriod = ONE_DAY.mul('14').toString();
     const minimumDelay = '0';
     const maximumDelay = ONE_DAY.mul('30').toString();

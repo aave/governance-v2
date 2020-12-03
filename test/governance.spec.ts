@@ -40,6 +40,8 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
   let proposalId: BigNumber;
   let startBlock: BigNumber;
   let endBlock: BigNumber;
+  let executionTime: BigNumber;
+  let gracePeriod: BigNumber;
 
   // Snapshoting main states as entry for later testing
   // Then will test by last snap shot first.
@@ -140,6 +142,8 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     );
 
     // SNAPSHOT: QUEUED PROPOSAL
+    executionTime = (await gov.getProposalById(proposalId)).executionTime;
+    gracePeriod = await executor.GRACE_PERIOD();
     snapshots.set('queued', await evmSnapshot());
   });
   describe('Testing cancel function on queued proposal on gov + exec', async function () {
@@ -299,16 +303,75 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
         proposalStates.QUEUED
       );
     });
-    it('Execute a proposal without payload', async () => {
+    it('should not execute a canceled prop', async () => {
+      const {
+        gov,
+        deployer,
+        executor,
+        users: [user],
+      } = testEnv;
+      await expect(gov.connect(deployer.signer).cancel(proposalId))
+        .to.emit(gov, 'ProposalCanceled')
+        .withArgs(proposalId)
+        .to.emit(executor, 'CancelledAction');
+      expect(await gov.connect(user.signer).getProposalState(proposalId)).to.be.equal(
+        proposalStates.CANCELED
+      );
+      await advanceBlock(Number(executionTime.toString()));
+
+      // Execute the propoal
+      const executeTx = gov.connect(user.signer).execute(proposalId);
+
+      await expect(Promise.resolve(executeTx)).to.be.revertedWith('ONLY_QUEUED_PROPOSALS');
+    });
+    it('should not execute a queued prop before timelock', async () => {
+      const {
+        gov,
+        executor,
+        users: [user],
+      } = testEnv;
+
+      expect(await gov.connect(user.signer).getProposalState(proposalId)).to.be.equal(
+        proposalStates.QUEUED
+      );
+      // 5 sec before delay reached
+      await advanceBlock(Number(executionTime.sub(5).toString()));
+
+      // Execute the propoal
+      const executeTx = gov.connect(user.signer).execute(proposalId);
+
+      await expect(Promise.resolve(executeTx)).to.be.revertedWith('TIMELOCK_NOT_FINISHED');
+    });
+    it('should not execute a queued prop after grace period (expired)', async () => {
+      const {
+        gov,
+        executor,
+        users: [user],
+      } = testEnv;
+
+      expect(await gov.connect(user.signer).getProposalState(proposalId)).to.be.equal(
+        proposalStates.QUEUED
+      );
+      // 5 sec before delay reached
+      await advanceBlock(Number(executionTime.add(gracePeriod).add(5).toString()));
+
+      // Execute the propoal
+      const executeTx = gov.connect(user.signer).execute(proposalId);
+
+      await expect(Promise.resolve(executeTx)).to.be.revertedWith('ONLY_QUEUED_PROPOSALS');
+      expect(await gov.connect(user.signer).getProposalState(proposalId)).to.be.equal(
+        proposalStates.EXPIRED
+      );
+    });
+    it('should execute a proposal', async () => {
       const {
         gov,
         users: [user],
       } = testEnv;
-      const {executionTime} = await gov.getProposalById(proposalId);
-      await advanceBlock(Number(executionTime.toString()));
+      await advanceBlock(Number(executionTime.add(gracePeriod).sub(5).toString()));
 
       // Execute the propoal
-      const executeTx = await gov.connect(user.signer).execute(proposalId);
+      const executeTx = gov.connect(user.signer).execute(proposalId);
 
       await expect(Promise.resolve(executeTx))
         .to.emit(gov, 'ProposalExecuted')
