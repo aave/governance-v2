@@ -44,14 +44,15 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
   // Snapshoting main states as entry for later testing
   // Then will test by last snap shot first.
   before(async () => {
-    const {
-      gov,
-      executor,
-      strategy,
-      aave,
-      users: [user1, user2, user3],
-      minter,
-    } = testEnv;
+    const {gov, executor, strategy, aave, users, minter} = testEnv;
+    const [user1, user2, user3, user4] = users;
+
+    // Cleaning users balances
+    for (let i = 0; i < users.length; i++) {
+      const balanceBefore = await aave.connect(users[i].signer).balanceOf(users[i].address);
+      await (await aave.connect(users[i].signer).transfer(minter.address, balanceBefore)).wait();
+    }
+
     votingDelay = await gov.getVotingDelay();
     votingDuration = await executor.VOTING_DURATION();
     executionDelay = await executor.getDelay();
@@ -75,6 +76,11 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
         .connect(user1.signer)
         .create(executor.address, [ZERO_ADDRESS], ['0'], [''], ['0x'], [false], ipfsBytes32Hash)
     );
+    // cleaning up user1 balance
+    const balance1 = await aave.connect(user1.signer).balanceOf(user1.address);
+    await (await aave.connect(user1.signer).transfer(minter.address, balance1)).wait();
+
+    // fixing constants
     proposalId = tx1.events?.[0].args?.id;
     startBlock = BigNumber.from(tx1.blockNumber).add(votingDelay);
     endBlock = BigNumber.from(tx1.blockNumber).add(votingDelay).add(votingDuration);
@@ -85,14 +91,24 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     // SNAPSHOT: PENDING PROPOSAL
     snapshots.set('pending', await evmSnapshot());
 
-    // Pending => Active
-    // sending 1 token to user3: not enough vote to pass
-    await aave.connect(minter.signer).transfer(user3.address, BigNumber.from('1'));
-    // making sure user1 can win the vote
     const balanceBefore = await aave.connect(user1.signer).balanceOf(user1.address);
-    await aave.connect(user1.signer).transfer(minter.address, balanceBefore); // emptying
-    await aave.connect(minter.signer).transfer(user1.address, minimumPower.add('5'));
+    // Preparing users with different powers for test
+    // user 1: 50% min voting power + 2 = 10%+ total power
+    await aave.connect(minter.signer).transfer(user1.address, minimumPower.div('2').add('2'));
+    // user 2: 50% min voting power + 2 = 10%+ total power
+    await aave.connect(minter.signer).transfer(user2.address, minimumPower.div('2').add('2'));
+    // user 3: 2 % min voting power, will be used to swing the vote
+    await aave
+      .connect(minter.signer)
+      .transfer(user3.address, minimumPower.mul('2').div('100').add('10'));
+    // user 4: 75% min voting power + 10 : = 15%+ total power, can barely make fail differential
+    await aave
+      .connect(minter.signer)
+      .transfer(user4.address, minimumPower.mul('75').div('100').add('10'));
+    // making sure user1 can win the vote
     const balanceAfter = await aave.connect(user1.signer).balanceOf(user1.address);
+
+    // Pending => Active
     // => go tto start block
     await advanceBlockTo(Number(startBlock.add(1).toString()));
     expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
@@ -106,7 +122,10 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     await expect(gov.connect(user1.signer).submitVote(proposalId, true))
       .to.emit(gov, 'VoteEmitted')
       .withArgs(proposalId, user1.address, true, balanceAfter);
-    // passing voting duration
+    await expect(gov.connect(user2.signer).submitVote(proposalId, true))
+      .to.emit(gov, 'VoteEmitted')
+      .withArgs(proposalId, user2.address, true, balanceAfter);
+    // go to end of voting period
     await advanceBlockTo(Number(endBlock.add('3').toString()));
     expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
       proposalStates.SUCCEEDED
@@ -208,48 +227,117 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
         proposalStates.ACTIVE
       );
     });
-    it('Vote a proposal without enough voting power => proposal failed', async () => {
-      // Vote
+    it('Vote a proposal without quorum => proposal failed', async () => {
+      // User 1 has 50% min power, should fail
       const {
         gov,
-        users: [, , user3],
+        users: [user1],
         minter,
         executor,
         aave,
       } = testEnv;
 
       // almost emptying balance, user 3 has only 1 voting power
-      const balance = await aave.connect(user3.signer).balanceOf(user3.address);
+      const balance = await aave.connect(user1.signer).balanceOf(user1.address);
       // submitting 1 vote
-      await expect(gov.connect(user3.signer).submitVote(proposalId, true))
+      await expect(gov.connect(user1.signer).submitVote(proposalId, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user3.address, true, balance);
+        .withArgs(proposalId, user1.address, true, balance);
 
       await advanceBlockTo(Number(endBlock.add('6').toString()));
-      expect(await gov.connect(user3.signer).getProposalState(proposalId)).to.be.equal(
+      expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
         proposalStates.FAILED
       );
     });
-    it('Vote a proposal with enough voting power => proposal succeeded', async () => {
+    it('Vote a proposal with quorum => proposal succeeded', async () => {
       // Vote
       const {
         gov,
-        users: [user],
+        users: [user1, user2],
         minter,
         executor,
         aave,
       } = testEnv;
-
-      // user1 has enough power to make a vote successful
-      const balance = await aave.connect(user.signer).balanceOf(user.address);
-      await expect(gov.connect(user.signer).submitVote(proposalId, true))
+      // User 1 + User 2 power > voting po<wer
+      const balance1 = await aave.connect(user1.signer).balanceOf(user1.address);
+      await expect(gov.connect(user1.signer).submitVote(proposalId, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user.address, true, balance);
+        .withArgs(proposalId, user1.address, true, balance1);
+      const balance2 = await aave.connect(user2.signer).balanceOf(user2.address);
+      await expect(gov.connect(user2.signer).submitVote(proposalId, true))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposalId, user2.address, true, balance2);
 
       // active => succeeded
 
       await advanceBlockTo(Number(endBlock.add('7').toString()));
-      expect(await gov.connect(user.signer).getProposalState(proposalId)).to.be.equal(
+      expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
+        proposalStates.SUCCEEDED
+      );
+    });
+    it('Vote a proposal with quorum but not vote dif => proposal failed', async () => {
+      // Vote
+      const {
+        gov,
+        users: [user1, user2, user3, user4],
+        minter,
+        executor,
+        aave,
+      } = testEnv;
+      // User 1 + User 2 = 20% power, voting yes
+      const balance1 = await aave.connect(user1.signer).balanceOf(user1.address);
+      await expect(gov.connect(user1.signer).submitVote(proposalId, true))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposalId, user1.address, true, balance1);
+      const balance2 = await aave.connect(user2.signer).balanceOf(user2.address);
+      await expect(gov.connect(user2.signer).submitVote(proposalId, true))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposalId, user2.address, true, balance2);
+
+      // User 4 = 15% Power, voting no
+      const balance4 = await aave.connect(user4.signer).balanceOf(user4.address);
+      await expect(gov.connect(user4.signer).submitVote(proposalId, false))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposalId, user4.address, false, balance4);
+
+      await advanceBlockTo(Number(endBlock.add('8').toString()));
+      expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
+        proposalStates.FAILED
+      );
+    });
+    it('Vote a proposal with quorum and vote dif => proposal succeeded', async () => {
+      // Vote
+      const {
+        gov,
+        users: [user1, user2, user3, user4],
+        minter,
+        executor,
+        aave,
+      } = testEnv;
+      // User 1 + User 2 = 20% power, voting yes
+      const balance1 = await aave.connect(user1.signer).balanceOf(user1.address);
+      await expect(gov.connect(user1.signer).submitVote(proposalId, true))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposalId, user1.address, true, balance1);
+      const balance2 = await aave.connect(user2.signer).balanceOf(user2.address);
+      await expect(gov.connect(user2.signer).submitVote(proposalId, true))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposalId, user2.address, true, balance2);
+
+      // User 4 = 15% Power, voting no
+      const balance4 = await aave.connect(user4.signer).balanceOf(user4.address);
+      await expect(gov.connect(user4.signer).submitVote(proposalId, false))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposalId, user4.address, false, balance4);
+
+      // User 3 makes the vote swing
+      const balance3 = await aave.connect(user3.signer).balanceOf(user3.address);
+      await expect(gov.connect(user3.signer).submitVote(proposalId, true))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposalId, user3.address, true, balance3);
+
+      await advanceBlockTo(Number(endBlock.add('9').toString()));
+      expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
         proposalStates.SUCCEEDED
       );
     });
@@ -730,10 +818,8 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       expect(await gov.connect(user.signer).getProposalState(proposalId)).to.be.equal(
         proposalStates.PENDING
       );
-      const proposal = await gov.connect(user.signer).getProposalById(proposalId);
-      const startBlock = proposal.startBlock;
       // => active
-      await advanceBlockTo(startBlock.toNumber() + 4);
+      await advanceBlockTo(Number(startBlock.add('15')));
       expect(await gov.connect(user.signer).getProposalState(proposalId)).to.be.equal(
         proposalStates.ACTIVE
       );
