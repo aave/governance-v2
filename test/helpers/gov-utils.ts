@@ -1,4 +1,4 @@
-import {BigNumber, Signer} from 'ethers';
+import {BigNumber, Signer, BigNumberish} from 'ethers';
 import {SignerWithAddress, TestEnv } from './make-suite';
 import {tEthereumAddress} from '../../helpers/types';
 import {AaveGovernanceV2} from '../../types/AaveGovernanceV2';
@@ -6,8 +6,8 @@ import {AaveTokenV2} from '../../types/AaveTokenV2';
 import {ExecutorMock} from '../../types/ExecutorMock';
 import {GovernanceStrategy} from '../../types/GovernanceStrategy';
 import {latestBlock, DRE} from '../../helpers/misc-utils';
+import {BytesLike} from 'ethers/lib/utils';
 import {expect, use} from 'chai';
-import { Test } from 'mocha';
 
 export const emptyBalances = async (users: SignerWithAddress[], testEnv: TestEnv) => {
   for (let i = 0; i < users.length; i++) {
@@ -50,9 +50,9 @@ export const expectProposalState = async (
   expect(await testEnv.gov.connect(testEnv.minter.signer).getProposalState(proposalId)).to.be.equal(
     state
   );
-}
+};
 
 export const getLastProposalId = async (testEnv: TestEnv) => {
   const currentCount = await testEnv.gov.getProposalsCount();
   return currentCount.eq('0') ? currentCount : currentCount.sub('1');
-}
+};

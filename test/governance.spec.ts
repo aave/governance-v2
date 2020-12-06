@@ -54,7 +54,7 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
   // Then will test by last snap shot first.
   before(async () => {
     const {gov, executor, strategy, aave, users, minter} = testEnv;
-    const [user1, user2, user3, user4] = users;
+    const [user1, user2, user3, user4, user5] = users;
 
     ({
       votingDelay,
@@ -101,11 +101,26 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     await setBalance(user3, minimumPower.mul('2').div('100').add('10'), testEnv);
     // user 4: 75% min voting power + 10 : = 15%+ total power, can barely make fail differential
     await setBalance(user4, minimumPower.mul('75').div('100').add('10'), testEnv);
+    // user 5: 50% min voting power + 2 = 10%+ total power.
+    await setBalance(user5, minimumPower.div('2').add('2'), testEnv);
+    let block = await DRE.ethers.provider.getBlockNumber();
+    expect(await strategy.getVotingPowerAt(user5.address, block)).to.be.equal(
+      minimumPower.div('2').add('2')
+    );
+    // user 5 delegates to user 2 => user 2 reached quorum
+    await waitForTx(await aave.connect(user5.signer).delegateAll(user2.address));
+    block = await DRE.ethers.provider.getBlockNumber();
+    // checking delegation worked
+    expect(await strategy.getVotingPowerAt(user5.address, block)).to.be.equal('0');
+    expect(await strategy.getVotingPowerAt(user2.address, block)).to.be.equal(
+      minimumPower.div('2').add('2').mul(2)
+    );
+    await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
     const balanceAfter = await aave.connect(user1.signer).balanceOf(user1.address);
 
     // Pending => Active
     // => go tto start block
-    await advanceBlockTo(Number(startBlock.add(1).toString()));
+    await advanceBlockTo(Number(startBlock.add(2).toString()));
     await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
 
     // SNAPSHOT: ACTIVE PROPOSAL
@@ -117,7 +132,7 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       .withArgs(proposalId, user1.address, true, balanceAfter);
     await expect(gov.connect(user2.signer).submitVote(proposalId, true))
       .to.emit(gov, 'VoteEmitted')
-      .withArgs(proposalId, user2.address, true, balanceAfter);
+      .withArgs(proposalId, user2.address, true, balanceAfter.mul('2'));
 
     // go to end of voting period
     await advanceBlockTo(Number(endBlock.add('3').toString()));
@@ -147,7 +162,6 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       const {
         gov,
         users: [user],
-        aave,
         minter,
       } = testEnv;
       // giving threshold power
@@ -160,11 +174,8 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     it('should cancel a queued proposal when threshold lost and not guardian', async () => {
       const {
         gov,
-        deployer, // deployer is guardian
         executor,
         users: [user],
-        aave,
-        minter,
       } = testEnv;
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
@@ -183,8 +194,6 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
         deployer, // deployer is guardian
         executor,
         users: [user],
-        aave,
-        minter,
       } = testEnv;
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
@@ -208,8 +217,6 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
         deployer, // deployer is guardian
         executor,
         users: [user],
-        aave,
-        minter,
       } = testEnv;
       // creator still above threshold power
       await setBalance(user, minimumCreatePower, testEnv);
@@ -250,7 +257,6 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     it('should not execute a queued prop before timelock', async () => {
       const {
         gov,
-        executor,
         users: [user],
       } = testEnv;
 
@@ -266,7 +272,6 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     it('should not execute a queued prop after grace period (expired)', async () => {
       const {
         gov,
-        executor,
         users: [user],
       } = testEnv;
 
@@ -305,10 +310,7 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     it('should not cancel when Threshold is higher than minimum and not guardian', async () => {
       const {
         gov,
-        deployer, // deployer is guardian
         users: [user],
-        aave,
-        minter,
       } = testEnv;
       // giving threshold power
       await setBalance(user, minimumCreatePower, testEnv);
@@ -320,11 +322,8 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     it('should cancel a succeeded proposal when threshold lost and not guardian', async () => {
       const {
         gov,
-        deployer, // deployer is guardian
         users: [user],
-        aave,
         executor,
-        minter,
       } = testEnv;
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
@@ -342,8 +341,6 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
         deployer, // deployer is guardian
         executor,
         users: [user],
-        aave,
-        minter,
       } = testEnv;
       // removing threshold power
       // cancelled
@@ -368,9 +365,7 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
         gov,
         deployer, // deployer is guardian
         users: [user],
-        aave,
         executor,
-        minter,
       } = testEnv;
       // giving threshold power to creator
       await setBalance(user, minimumCreatePower, testEnv);
@@ -384,11 +379,8 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
     it('should cancel an succeeded proposal when threshold lost and not guardian', async () => {
       const {
         gov,
-        deployer, // deployer is guardian
         executor,
         users: [user],
-        aave,
-        minter,
       } = testEnv;
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
@@ -438,9 +430,8 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       // User 1 has 50% min power, should fail
       const {
         gov,
-        users: [user1],
-        minter,
         executor,
+        users: [user1],
         aave,
       } = testEnv;
 
@@ -451,6 +442,8 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
         .withArgs(proposalId, user1.address, true, balance);
 
       await advanceBlockTo(Number(endBlock.add('9').toString()));
+      expect(await executor.isQuorumValid(gov.address, proposalId)).to.be.equal(false);
+      expect(await executor.isVoteDifferentialValid(gov.address, proposalId)).to.be.equal(true);
       expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
         proposalStates.FAILED
       );
@@ -459,9 +452,9 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       // Vote
       const {
         gov,
-        users: [user1, user2],
-        minter,
         executor,
+        strategy,
+        users: [user1, user2],
         aave,
       } = testEnv;
       // User 1 + User 2 power > voting po<wer, see before() function
@@ -469,14 +462,43 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       await expect(gov.connect(user1.signer).submitVote(proposalId, true))
         .to.emit(gov, 'VoteEmitted')
         .withArgs(proposalId, user1.address, true, balance1);
-      const balance2 = await aave.connect(user2.signer).balanceOf(user2.address);
+      //  user 2 has received delegation from user 5
+      const power2 = await strategy.getVotingPowerAt(user2.address, startBlock);
       await expect(gov.connect(user2.signer).submitVote(proposalId, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user2.address, true, balance2);
+        .withArgs(proposalId, user2.address, true, power2);
 
       // active => succeeded
 
       await advanceBlockTo(Number(endBlock.add('10').toString()));
+      expect(await executor.isQuorumValid(gov.address, proposalId)).to.be.equal(true);
+      expect(await executor.isVoteDifferentialValid(gov.address, proposalId)).to.be.equal(true);
+      expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
+        proposalStates.SUCCEEDED
+      );
+    });
+    it('Vote a proposal with quorum via delegation => proposal succeeded', async () => {
+      // Vote
+      const {
+        gov,
+        strategy,
+        executor,
+        users: [user1, user2, , , user5],
+        aave,
+      } = testEnv;
+      // user 5 has delegated to user 2
+      const balance2 = await aave.connect(user1.signer).balanceOf(user2.address);
+      const balance5 = await aave.connect(user2.signer).balanceOf(user5.address);
+      expect(await strategy.getVotingPowerAt(user2.address, startBlock)).to.be.equal(
+        balance2.add(balance5)
+      );
+      await expect(gov.connect(user2.signer).submitVote(proposalId, true))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposalId, user2.address, true, balance2.add(balance5));
+      // active => succeeded
+      await advanceBlockTo(Number(endBlock.add('11').toString()));
+      expect(await executor.isQuorumValid(gov.address, proposalId)).to.be.equal(true);
+      expect(await executor.isVoteDifferentialValid(gov.address, proposalId)).to.be.equal(true);
       expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
         proposalStates.SUCCEEDED
       );
@@ -485,20 +507,18 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       // Vote
       const {
         gov,
+        strategy,
         users: [user1, user2, user3, user4],
         minter,
         executor,
         aave,
       } = testEnv;
-      // User 1 + User 2 = 20% power, voting yes
-      const balance1 = await aave.connect(user1.signer).balanceOf(user1.address);
-      await expect(gov.connect(user1.signer).submitVote(proposalId, true))
-        .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user1.address, true, balance1);
-      const balance2 = await aave.connect(user2.signer).balanceOf(user2.address);
+      // User 2 + User 5 delegation = 20% power, voting yes
+      //  user 2 has received delegation from user 5
+      const power2 = await strategy.getVotingPowerAt(user2.address, startBlock);
       await expect(gov.connect(user2.signer).submitVote(proposalId, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user2.address, true, balance2);
+        .withArgs(proposalId, user2.address, true, power2);
 
       // User 4 = 15% Power, voting no
       const balance4 = await aave.connect(user4.signer).balanceOf(user4.address);
@@ -506,7 +526,9 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
         .to.emit(gov, 'VoteEmitted')
         .withArgs(proposalId, user4.address, false, balance4);
 
-      await advanceBlockTo(Number(endBlock.add('11').toString()));
+      await advanceBlockTo(Number(endBlock.add('12').toString()));
+      expect(await executor.isQuorumValid(gov.address, proposalId)).to.be.equal(true);
+      expect(await executor.isVoteDifferentialValid(gov.address, proposalId)).to.be.equal(false);
       expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
         proposalStates.FAILED
       );
@@ -515,20 +537,18 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       // Vote
       const {
         gov,
+        strategy,
         users: [user1, user2, user3, user4],
         minter,
         executor,
         aave,
       } = testEnv;
-      // User 1 + User 2 = 20% power, voting yes
-      const balance1 = await aave.connect(user1.signer).balanceOf(user1.address);
-      await expect(gov.connect(user1.signer).submitVote(proposalId, true))
-        .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user1.address, true, balance1);
-      const balance2 = await aave.connect(user2.signer).balanceOf(user2.address);
+      // User 2 + User 5 delegation = 20% power, voting yes
+      //  user 2 has received delegation from user 5
+      const power2 = await strategy.getVotingPowerAt(user2.address, startBlock);
       await expect(gov.connect(user2.signer).submitVote(proposalId, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user2.address, true, balance2);
+        .withArgs(proposalId, user2.address, true, power2);
 
       // User 4 = 15% Power, voting no
       const balance4 = await aave.connect(user4.signer).balanceOf(user4.address);
@@ -542,7 +562,9 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
         .to.emit(gov, 'VoteEmitted')
         .withArgs(proposalId, user3.address, true, balance3);
 
-      await advanceBlockTo(Number(endBlock.add('12').toString()));
+      await advanceBlockTo(Number(endBlock.add('13').toString()));
+      expect(await executor.isQuorumValid(gov.address, proposalId)).to.be.equal(true);
+      expect(await executor.isVoteDifferentialValid(gov.address, proposalId)).to.be.equal(true);
       expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
         proposalStates.SUCCEEDED
       );
@@ -550,7 +572,7 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
 
     it('Vote a proposal by permit', async () => {
       const {
-        users: [, user2],
+        users: [, , user3],
         minter,
         aave,
         gov,
@@ -565,20 +587,20 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
 
       // Prepare signature
       const msgParams = buildPermitParams(chainId, gov.address, proposalId.toString(), true);
-      const ownerPrivateKey = require('../test-wallets.js').accounts[3].secretKey; // deployer, minter, user1, user3
+      const ownerPrivateKey = require('../test-wallets.js').accounts[4].secretKey; // deployer, minter, user1, user2, user3
 
       const {v, r, s} = getSignatureFromTypedData(ownerPrivateKey, msgParams);
 
-      const balance = await aave.connect(minter.signer).balanceOf(user2.address);
+      const balance = await aave.connect(minter.signer).balanceOf(user3.address);
 
       // Publish vote by signature using other address as relayer
       const votePermitTx = await gov
-        .connect(user2.signer)
+        .connect(user3.signer)
         .submitVoteBySignature(proposalId, true, v, r, s);
 
       await expect(Promise.resolve(votePermitTx))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user2.address, true, balance);
+        .withArgs(proposalId, user3.address, true, balance);
     });
   });
   describe('Testing cancel function on active proposal', async function () {
@@ -849,6 +871,68 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
 
       // give enough power
       await setBalance(user, minimumCreatePower, testEnv);
+
+      // Params for proposal
+      const params: [
+        string,
+        string[],
+        BigNumberish[],
+        string[],
+        BytesLike[],
+        boolean[],
+        BytesLike
+      ] = [executor.address, [ZERO_ADDRESS], ['0'], [''], ['0x'], [false], ipfsBytes32Hash];
+
+      // Create proposal
+      const tx = await gov.connect(user.signer).create(...params);
+      // Check ProposalCreated event
+      const startBlock = BigNumber.from(tx.blockNumber).add(votingDelay);
+      const endBlock = startBlock.add(votingDuration);
+      const [
+        executorAddress,
+        targets,
+        values,
+        signatures,
+        calldatas,
+        withDelegateCalls,
+        ipfsHash,
+      ] = params;
+
+      await expect(Promise.resolve(tx))
+        .to.emit(gov, 'ProposalCreated')
+        .withArgs(
+          count,
+          user.address,
+          executorAddress,
+          targets,
+          values,
+          signatures,
+          calldatas,
+          withDelegateCalls,
+          startBlock,
+          endBlock,
+          strategy.address,
+          ipfsHash
+        );
+      await expectProposalState(count, proposalStates.PENDING, testEnv);
+    });
+    it('should create proposal when enough power via delegation', async () => {
+      const {
+        gov,
+        users: [user, user2],
+        minter,
+        executor,
+        aave,
+        strategy,
+      } = testEnv;
+
+      // Count current proposal id
+      const count = await gov.connect(user.signer).getProposalsCount();
+
+      // give enough power
+      await setBalance(user, minimumCreatePower.div('2').add('1'), testEnv);
+      await setBalance(user2, minimumCreatePower.div('2').add('1'), testEnv);
+      await waitForTx(await aave.connect(user2.signer).delegateAll(user.address));
 
       // Params for proposal
       const params: [
