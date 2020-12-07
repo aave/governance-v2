@@ -203,6 +203,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
     bool success;
     bytes memory resultData;
     if (withDelegatecall) {
+      require(msg.value >= value, "NOT_ENOUGH_MSG_VALUE");
       // solium-disable-next-line security/no-call-value
       (success, resultData) = target.delegatecall(callData);
     } else {
