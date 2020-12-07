@@ -20,6 +20,7 @@ import {isContract, getChainId} from '../misc/Helpers.sol';
  * - Execute a Proposal
  * - Submit Vote to a Proposal
  * Proposal States : Pending => Active => Succeeded(/Failed) => Queued => Executed(/Expired)
+ *                   The transition to "Canceled" can appear in multiple states
  * @author Aave
  **/
 contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
@@ -152,7 +153,9 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   function cancel(uint256 proposalId) external override {
     ProposalState state = getProposalState(proposalId);
     require(
-      state != ProposalState.Executed && state != ProposalState.Canceled,
+      state != ProposalState.Executed &&
+        state != ProposalState.Canceled &&
+        state != ProposalState.Expired,
       'ONLY_BEFORE_EXECUTED'
     );
 
