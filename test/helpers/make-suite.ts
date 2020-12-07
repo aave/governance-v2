@@ -79,13 +79,13 @@ export async function initializeMakeSuite() {
 }
 
 export function makeSuite(name: string, tests: (testEnv: TestEnv) => void) {
+  before(async () => {
+    setBuidlerevmSnapshotId(await evmSnapshot());
+  });
   describe(name, () => {
-    before(async () => {
-      setBuidlerevmSnapshotId(await evmSnapshot());
-    });
     tests(testEnv);
-    after(async () => {
-      await evmRevert(buidlerevmSnapshotId);
-    });
+  });
+  after(async () => {
+    await evmRevert(buidlerevmSnapshotId);
   });
 }
