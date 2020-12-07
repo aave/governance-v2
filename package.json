@@ -1,5 +1,5 @@
 {
-  "name": "governance-v2",
+  "name": "@aave-tech/aave-governance-v2",
   "version": "1.0.0",
   "description": "Aave Governance v2 smart contracts",
   "scripts": {
@@ -84,5 +84,8 @@
   "license": "AGPLv3",
   "dependencies": {
     "@aave-tech/aave-token": "master"
+  },
+  "publishConfig": {
+    "@aave-tech:registry": "https://gitlab.com/api/v4/projects/22299695/packages/npm/"
   }
 }
