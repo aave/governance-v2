@@ -167,7 +167,7 @@ contract ProposalValidator is IProposalValidator {
       proposal.startBlock
     );
 
-    return proposal.forVotes > getMinimumVotingPowerNeeded(votingSupply);
+    return proposal.forVotes >= getMinimumVotingPowerNeeded(votingSupply);
   }
 
   /**
