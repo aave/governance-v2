@@ -274,7 +274,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   /**
    * @dev Set new Voting Delay (delay before a newly created proposal can be voted on)
    * Note: owner should be a timelocked executor, so needs to make a proposal
-   * @param votingDelay new voting delay in seconds
+   * @param votingDelay new voting delay in terms of blocks
    **/
   function setVotingDelay(uint256 votingDelay) external override onlyOwner {
     _setVotingDelay(votingDelay);
@@ -318,7 +318,7 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   /**
    * @dev Getter of the current Voting Delay (delay before a created proposal can be voted on)
    * Different from the voting duration
-   * @return The voting delay in seconds
+   * @return The voting delay in number of blocks
    **/
   function getVotingDelay() external view override returns (uint256) {
     return _votingDelay;
