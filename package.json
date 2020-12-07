@@ -83,6 +83,6 @@
   ],
   "license": "AGPLv3",
   "dependencies": {
-    "@aave-tech/aave-token": "^1.0.0"
+    "@aave-tech/aave-token": "ci-deployment-branches"
   }
 }
