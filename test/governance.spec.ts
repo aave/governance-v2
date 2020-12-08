@@ -108,7 +108,7 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       minimumPower.div('2').add('2')
     );
     // user 5 delegates to user 2 => user 2 reached quorum
-    await waitForTx(await aave.connect(user5.signer).delegateAll(user2.address));
+    await waitForTx(await aave.connect(user5.signer).delegate(user2.address));
     block = await DRE.ethers.provider.getBlockNumber();
     // checking delegation worked
     expect(await strategy.getVotingPowerAt(user5.address, block)).to.be.equal('0');
@@ -932,7 +932,7 @@ makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
       // give enough power
       await setBalance(user, minimumCreatePower.div('2').add('1'), testEnv);
       await setBalance(user2, minimumCreatePower.div('2').add('1'), testEnv);
-      await waitForTx(await aave.connect(user2.signer).delegateAll(user.address));
+      await waitForTx(await aave.connect(user2.signer).delegate(user.address));
 
       // Params for proposal
       const params: [
