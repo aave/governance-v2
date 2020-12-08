@@ -1,5 +1,6 @@
 import {evmRevert, evmSnapshot, DRE} from '../../helpers/misc-utils';
 import {Signer} from 'ethers';
+import rawBRE from 'hardhat';
 import chai from 'chai';
 // @ts-ignore
 import {solidity} from 'ethereum-waffle';
@@ -78,8 +79,27 @@ export async function initializeMakeSuite() {
   testEnv.executor = await getExecutor();
 }
 
-export function makeSuite(name: string, tests: (testEnv: TestEnv) => void) {
+export async function deployGovernance() {
+  console.log('-> Deploying governance test environment...');
+  await rawBRE.run('migrate:dev');
+  await initializeMakeSuite();
+  console.log('\n***************');
+  console.log('Setup and snapshot finished');
+  console.log('***************\n');
+}
+
+export async function deployGovernanceNoDelay() {
+  console.log('-> Deploying governance test environment with no delay...');
+  await rawBRE.run('migrate:dev-no-delay');
+  await initializeMakeSuite();
+  console.log('\n***************');
+  console.log('Setup and snapshot finished');
+  console.log('***************\n');
+}
+
+export function makeSuite(name: string, deployment: () => void, tests: (testEnv: TestEnv) => void) {
   before(async () => {
+    await deployment();
     setBuidlerevmSnapshotId(await evmSnapshot());
   });
   describe(name, () => {

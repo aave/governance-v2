@@ -1,6 +1,6 @@
 import {expect, use} from 'chai';
 import {ipfsBytes32Hash, MAX_UINT_AMOUNT, ZERO_ADDRESS} from '../helpers/constants';
-import {makeSuite, TestEnv} from './helpers/make-suite';
+import {makeSuite, TestEnv, deployGovernance} from './helpers/make-suite';
 import {solidity} from 'ethereum-waffle';
 import {BytesLike, formatEther, parseEther, splitSignature} from 'ethers/lib/utils';
 import {BigNumberish, BigNumber, Wallet} from 'ethers';
@@ -23,6 +23,7 @@ import {
 import {deployGovernanceStrategy} from '../helpers/contracts-deployments';
 import {buildPermitParams, getSignatureFromTypedData} from './helpers/permit';
 import {fail} from 'assert';
+
 use(solidity);
 
 const proposalStates = {
@@ -38,7 +39,7 @@ const proposalStates = {
 
 const snapshots = new Map<string, string>();
 
-makeSuite('Aave Governance V2 tests', (testEnv: TestEnv) => {
+makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
   let votingDelay: BigNumber;
   let votingDuration: BigNumber;
   let executionDelay: BigNumber;
