@@ -69,6 +69,13 @@ const buidlerConfig: HardhatUserConfig = {
           evmVersion: 'istanbul',
         },
       },
+      {
+        version: '0.6.12',
+        settings: {
+          optimizer: {enabled: true, runs: 200},
+          evmVersion: 'istanbul',
+        },
+      },
     ],
   },
   typechain: {
