@@ -1,6 +1,11 @@
 import {expect, use} from 'chai';
 import {ipfsBytes32Hash, MAX_UINT_AMOUNT, ZERO_ADDRESS} from '../helpers/constants';
-import {makeSuite, TestEnv, deployGovernance} from './helpers/make-suite';
+import {
+  makeSuite,
+  TestEnv,
+  deployGovernance,
+  deployGovernanceWithoutExecutorAsOwner,
+} from './helpers/make-suite';
 import {solidity} from 'ethereum-waffle';
 import {BytesLike, formatEther, parseEther, splitSignature} from 'ethers/lib/utils';
 import {BigNumberish, BigNumber, Wallet} from 'ethers';
@@ -638,7 +643,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         users: [user],
         aave,
         minter,
-        executor
+        executor,
       } = testEnv;
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
@@ -657,7 +662,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         users: [user],
         aave,
         minter,
-        executor
+        executor,
       } = testEnv;
       // removing threshold power
       // cancelled
@@ -801,29 +806,6 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         .withArgs(proposalId)
         .to.emit(executor, 'CancelledAction');
       await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-    });
-  });
-  describe('Testing setter functions', async function () {
-    it('Set governance strategy', async () => {
-      const {gov, deployer, aave, stkAave} = testEnv;
-
-      const strategy = await deployGovernanceStrategy(aave.address, stkAave.address);
-
-      // Set new strategy
-      await gov.connect(deployer.signer).setGovernanceStrategy(strategy.address);
-      const govStrategy = await gov.getGovernanceStrategy();
-
-      expect(govStrategy).to.equal(strategy.address);
-    });
-
-    it('Set voting delay', async () => {
-      const {gov, deployer} = testEnv;
-
-      // Set voting delay
-      await gov.connect(deployer.signer).setVotingDelay('10');
-      const govVotingDelay = await gov.getVotingDelay();
-
-      expect(govVotingDelay).to.equal('10');
     });
   });
   describe('Testing create function', async function () {
@@ -1201,46 +1183,75 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       }
     });
   });
-  describe('Testing executor auth/unautho functions', async function () {
-    it('Unauthorize executor', async () => {
-      const {gov, deployer, executor} = testEnv;
-
-      // Unauthorize executor
-      await gov.connect(deployer.signer).unauthorizeExecutors([executor.address]);
-      const isAuthorized = await gov
-        .connect(deployer.signer)
-        .isExecutorAuthorized(executor.address);
-
-      expect(isAuthorized).to.equal(false);
-    });
-
-    it('Authorize executor', async () => {
-      const {
-        gov,
-        deployer, // is owner of gov
-        executor,
-      } = testEnv;
-
-      // Authorize
-      await gov.connect(deployer.signer).authorizeExecutors([executor.address]);
-      const isAuthorized = await gov
-        .connect(deployer.signer)
-        .isExecutorAuthorized(executor.address);
-
-      expect(isAuthorized).to.equal(true);
-    });
-  });
-  describe('Testing guardian functions', async function () {
-    it('Abdicate guardian', async () => {
-      const {
-        gov,
-        deployer,
-        users: [user],
-      } = testEnv;
-
-      await gov.connect(deployer.signer).__abdicate();
-      const guardian = await gov.connect(deployer.signer).getGuardian();
-      expect(guardian).to.equal(ZERO_ADDRESS);
-    });
-  });
 });
+makeSuite(
+  'Aave Governance V2 tests: admin functions',
+  deployGovernanceWithoutExecutorAsOwner,
+  (testEnv: TestEnv) => {
+    describe('Testing setter functions', async function () {
+      it('Set governance strategy', async () => {
+        const {gov, deployer, aave, stkAave} = testEnv;
+
+        const strategy = await deployGovernanceStrategy(aave.address, stkAave.address);
+
+        // Set new strategy
+        await gov.connect(deployer.signer).setGovernanceStrategy(strategy.address);
+        const govStrategy = await gov.getGovernanceStrategy();
+
+        expect(govStrategy).to.equal(strategy.address);
+      });
+
+      it('Set voting delay', async () => {
+        const {gov, deployer} = testEnv;
+
+        // Set voting delay
+        await gov.connect(deployer.signer).setVotingDelay('10');
+        const govVotingDelay = await gov.getVotingDelay();
+
+        expect(govVotingDelay).to.equal('10');
+      });
+    });
+    describe('Testing executor auth/unautho functions', async function () {
+      it('Unauthorize executor', async () => {
+        const {gov, deployer, executor} = testEnv;
+
+        // Unauthorize executor
+        await gov.connect(deployer.signer).unauthorizeExecutors([executor.address]);
+        const isAuthorized = await gov
+          .connect(deployer.signer)
+          .isExecutorAuthorized(executor.address);
+
+        expect(isAuthorized).to.equal(false);
+      });
+
+      it('Authorize executor', async () => {
+        const {
+          gov,
+          deployer, // is owner of gov
+          executor,
+        } = testEnv;
+
+        // Authorize
+        await gov.connect(deployer.signer).authorizeExecutors([executor.address]);
+        const isAuthorized = await gov
+          .connect(deployer.signer)
+          .isExecutorAuthorized(executor.address);
+
+        expect(isAuthorized).to.equal(true);
+      });
+    });
+    describe('Testing guardian functions', async function () {
+      it('Abdicate guardian', async () => {
+        const {
+          gov,
+          deployer,
+          users: [user],
+        } = testEnv;
+
+        await gov.connect(deployer.signer).__abdicate();
+        const guardian = await gov.connect(deployer.signer).getGuardian();
+        expect(guardian).to.equal(ZERO_ADDRESS);
+      });
+    });
+  }
+);

@@ -88,9 +88,18 @@ export async function deployGovernance() {
   console.log('***************\n');
 }
 
+export async function deployGovernanceWithoutExecutorAsOwner() {
+  console.log('-> Deploying governance test environment...');
+  await rawBRE.run('migrate:dev', {executorAsOwner: 'false'});
+  await initializeMakeSuite();
+  console.log('\n***************');
+  console.log('Setup and snapshot finished');
+  console.log('***************\n');
+}
+
 export async function deployGovernanceNoDelay() {
   console.log('-> Deploying governance test environment with no delay...');
-  await rawBRE.run('migrate:dev-no-delay');
+  await rawBRE.run('migrate:dev', {votingDelay: '0'});
   await initializeMakeSuite();
   console.log('\n***************');
   console.log('Setup and snapshot finished');
