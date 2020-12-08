@@ -14,7 +14,7 @@ import {
 import {tEthereumAddress} from '../../helpers/types';
 import {AaveGovernanceV2} from '../../types/AaveGovernanceV2';
 import {AaveTokenV2} from '../../types/AaveTokenV2';
-import {ExecutorMock} from '../../types/ExecutorMock';
+import {Executor} from '../../types/Executor';
 import {GovernanceStrategy} from '../../types/GovernanceStrategy';
 
 chai.use(solidity);
@@ -31,7 +31,7 @@ export interface TestEnv {
   stkAave: AaveTokenV2; // TODO change to a mock of stkAAVE
   gov: AaveGovernanceV2;
   strategy: GovernanceStrategy;
-  executor: ExecutorMock;
+  executor: Executor;
 }
 
 let buidlerevmSnapshotId: string = '0x1';
@@ -49,7 +49,7 @@ const testEnv: TestEnv = {
   stkAave: {} as AaveTokenV2,
   gov: {} as AaveGovernanceV2,
   strategy: {} as GovernanceStrategy,
-  executor: {} as ExecutorMock,
+  executor: {} as Executor,
 } as TestEnv;
 
 export async function initializeMakeSuite() {
@@ -97,15 +97,16 @@ export async function deployGovernanceNoDelay() {
   console.log('***************\n');
 }
 
-export function makeSuite(name: string, deployment: () => void, tests: (testEnv: TestEnv) => void) {
-  before(async () => {
-    await deployment();
+export async function makeSuite(name: string, deployment: () => Promise<void>, tests: (testEnv: TestEnv) => void) {
+  beforeEach(async () => {
+    rawBRE.run('set-DRE');
     setBuidlerevmSnapshotId(await evmSnapshot());
   });
-  describe(name, () => {
+  describe(name, async () => {
+    before(deployment);
     tests(testEnv);
   });
-  after(async () => {
+  afterEach(async () => {
     await evmRevert(buidlerevmSnapshotId);
   });
 }

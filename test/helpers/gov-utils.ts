@@ -1,12 +1,6 @@
 import {BigNumber, Signer, BigNumberish} from 'ethers';
 import {SignerWithAddress, TestEnv } from './make-suite';
-import {tEthereumAddress} from '../../helpers/types';
-import {AaveGovernanceV2} from '../../types/AaveGovernanceV2';
-import {AaveTokenV2} from '../../types/AaveTokenV2';
-import {ExecutorMock} from '../../types/ExecutorMock';
-import {GovernanceStrategy} from '../../types/GovernanceStrategy';
 import {latestBlock, DRE} from '../../helpers/misc-utils';
-import {BytesLike} from 'ethers/lib/utils';
 import {expect, use} from 'chai';
 
 export const emptyBalances = async (users: SignerWithAddress[], testEnv: TestEnv) => {
