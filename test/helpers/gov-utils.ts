@@ -2,6 +2,7 @@ import {BigNumber, Signer, BigNumberish} from 'ethers';
 import {SignerWithAddress, TestEnv } from './make-suite';
 import {latestBlock, DRE} from '../../helpers/misc-utils';
 import {expect, use} from 'chai';
+import { Test } from 'mocha';
 
 export const emptyBalances = async (users: SignerWithAddress[], testEnv: TestEnv) => {
   for (let i = 0; i < users.length; i++) {
@@ -50,3 +51,6 @@ export const getLastProposalId = async (testEnv: TestEnv) => {
   const currentCount = await testEnv.gov.getProposalsCount();
   return currentCount.eq('0') ? currentCount : currentCount.sub('1');
 };
+
+export const encodeSetDelay = async (newDelay: string, testEnv: TestEnv) =>
+  testEnv.gov.interface.encodeFunctionData('setVotingDelay', [BigNumber.from(newDelay)]);

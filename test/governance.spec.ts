@@ -19,6 +19,7 @@ import {
   setBalance,
   expectProposalState,
   getLastProposalId,
+  encodeSetDelay,
 } from './helpers/gov-utils';
 import {deployGovernanceStrategy} from '../helpers/contracts-deployments';
 import {buildPermitParams, getSignatureFromTypedData} from './helpers/permit';
@@ -75,11 +76,13 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     // Giving user 1 enough power to propose
     await setBalance(user1, minimumPower, testEnv);
 
+    const callData = await encodeSetDelay('300', testEnv);
+
     //Creating first proposal
     const tx1 = await waitForTx(
       await gov
         .connect(user1.signer)
-        .create(executor.address, [ZERO_ADDRESS], ['0'], [''], ['0x'], [false], ipfsBytes32Hash)
+        .create(executor.address, [gov.address], ['0'], [''], [callData], [false], ipfsBytes32Hash)
     );
     // cleaning up user1 balance
     await emptyBalances([user1], testEnv);
@@ -293,12 +296,14 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       } = testEnv;
       await advanceBlock(Number(executionTime.add(gracePeriod).sub(5).toString()));
 
-      // Execute the propoal
+      expect(await gov.getVotingDelay()).to.be.equal(votingDelay);
+      // Execute the proposal: changing the delay to 300
       const executeTx = gov.connect(user.signer).execute(proposalId);
 
       await expect(Promise.resolve(executeTx))
         .to.emit(gov, 'ProposalExecuted')
         .withArgs(proposalId, user.address);
+      expect(await gov.getVotingDelay()).to.be.equal(BigNumber.from('300'));
     });
   });
   describe('Testing cancel function on succeeded proposal', async function () {
