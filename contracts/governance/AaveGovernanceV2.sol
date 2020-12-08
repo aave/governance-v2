@@ -477,12 +477,6 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   }
 
   function _setGovernanceStrategy(address governanceStrategy) internal {
-    require(
-      IGovernanceStrategy(governanceStrategy).getTotalPropositionSupplyAt(block.number) > 0 &&
-        IGovernanceStrategy(governanceStrategy).getTotalVotingSupplyAt(block.number) > 0,
-      'INVALID_STRATEGY'
-    );
-
     _governanceStrategy = governanceStrategy;
 
     emit GovernanceStrategyChanged(governanceStrategy, msg.sender);
