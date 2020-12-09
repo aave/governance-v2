@@ -2,7 +2,7 @@
 
 ## Architecture
 
-![governance-v2-architecture](./gov-v2-architecture.png)
+![governance-v2-architecture](./gov-v2-architecture.jpg)
 
 ## Planned configurations for mainnet
 
