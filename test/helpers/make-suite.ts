@@ -1,5 +1,6 @@
 import {evmRevert, evmSnapshot, DRE} from '../../helpers/misc-utils';
 import {Signer} from 'ethers';
+import rawBRE from 'hardhat';
 import chai from 'chai';
 // @ts-ignore
 import {solidity} from 'ethereum-waffle';
@@ -13,7 +14,7 @@ import {
 import {tEthereumAddress} from '../../helpers/types';
 import {AaveGovernanceV2} from '../../types/AaveGovernanceV2';
 import {AaveTokenV2} from '../../types/AaveTokenV2';
-import {ExecutorMock} from '../../types/ExecutorMock';
+import {Executor} from '../../types/Executor';
 import {GovernanceStrategy} from '../../types/GovernanceStrategy';
 
 chai.use(solidity);
@@ -30,7 +31,7 @@ export interface TestEnv {
   stkAave: AaveTokenV2; // TODO change to a mock of stkAAVE
   gov: AaveGovernanceV2;
   strategy: GovernanceStrategy;
-  executor: ExecutorMock;
+  executor: Executor;
 }
 
 let buidlerevmSnapshotId: string = '0x1';
@@ -48,7 +49,7 @@ const testEnv: TestEnv = {
   stkAave: {} as AaveTokenV2,
   gov: {} as AaveGovernanceV2,
   strategy: {} as GovernanceStrategy,
-  executor: {} as ExecutorMock,
+  executor: {} as Executor,
 } as TestEnv;
 
 export async function initializeMakeSuite() {
@@ -78,14 +79,43 @@ export async function initializeMakeSuite() {
   testEnv.executor = await getExecutor();
 }
 
-export function makeSuite(name: string, tests: (testEnv: TestEnv) => void) {
-  before(async () => {
+export async function deployGovernance() {
+  console.log('-> Deploying governance test environment...');
+  await rawBRE.run('migrate:dev');
+  await initializeMakeSuite();
+  console.log('\n***************');
+  console.log('Setup and snapshot finished');
+  console.log('***************\n');
+}
+
+export async function deployGovernanceWithoutExecutorAsOwner() {
+  console.log('-> Deploying governance test environment...');
+  await rawBRE.run('migrate:dev', {executorAsOwner: 'false'});
+  await initializeMakeSuite();
+  console.log('\n***************');
+  console.log('Setup and snapshot finished');
+  console.log('***************\n');
+}
+
+export async function deployGovernanceNoDelay() {
+  console.log('-> Deploying governance test environment with no delay...');
+  await rawBRE.run('migrate:dev', {votingDelay: '0'});
+  await initializeMakeSuite();
+  console.log('\n***************');
+  console.log('Setup and snapshot finished');
+  console.log('***************\n');
+}
+
+export async function makeSuite(name: string, deployment: () => Promise<void>, tests: (testEnv: TestEnv) => void) {
+  beforeEach(async () => {
+    rawBRE.run('set-DRE');
     setBuidlerevmSnapshotId(await evmSnapshot());
   });
-  describe(name, () => {
+  describe(name, async () => {
+    before(deployment);
     tests(testEnv);
   });
-  after(async () => {
+  afterEach(async () => {
     await evmRevert(buidlerevmSnapshotId);
   });
 }

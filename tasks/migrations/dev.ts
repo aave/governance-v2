@@ -7,7 +7,9 @@ const ONE_DAY = BigNumber.from('60').mul('60').mul('24');
 task(`migrate:dev`, `Deploy governance for tests and development purposes`)
   .addFlag('verify')
   .addFlag('silent')
-  .setAction(async ({verify, silent}, _DRE) => {
+  .addParam('votingDelay', '', '15')
+  .addParam('executorAsOwner', '', 'true') // had issue with other types than string
+  .setAction(async ({votingDelay, executorAsOwner, verify, silent}, _DRE) => {
     await _DRE.run('set-DRE');
     const [adminSigner, tokenMinterSigner] = await _DRE.ethers.getSigners();
     const admin = await adminSigner.getAddress();
@@ -34,6 +36,7 @@ task(`migrate:dev`, `Deploy governance for tests and development purposes`)
     const governance = await _DRE.run('deploy:gov', {
       strategy: strategy.address,
       guardian: admin,
+      votingDelay,
       verify,
     });
 
@@ -61,7 +64,11 @@ task(`migrate:dev`, `Deploy governance for tests and development purposes`)
     });
 
     // authorize executor
-    await _DRE.run('init:gov', {governance: governance.address, executor: executor.address});
+    await _DRE.run('init:gov', {
+      executorAsOwner,
+      governance: governance.address,
+      executor: executor.address,
+    });
 
     if (!silent) {
       console.log('- Contracts deployed for development');

@@ -1,6 +1,6 @@
 import {expect, use} from 'chai';
 import {ipfsBytes32Hash, MAX_UINT_AMOUNT, ZERO_ADDRESS} from '../helpers/constants';
-import {makeSuite, TestEnv} from './helpers/make-suite';
+import {makeSuite, TestEnv, deployGovernanceNoDelay} from './helpers/make-suite';
 import {solidity} from 'ethereum-waffle';
 import {BytesLike, parseEther} from 'ethers/lib/utils';
 import {BigNumberish, BigNumber} from 'ethers';
@@ -10,7 +10,7 @@ import {deployFlashAttacks} from '../helpers/contracts-deployments';
 
 use(solidity);
 
-makeSuite('Aave Governance V2 attack test cases', (testEnv: TestEnv) => {
+makeSuite('Aave Governance V2 attack test cases', deployGovernanceNoDelay, (testEnv: TestEnv) => {
   let votingDelay: BigNumber;
   let votingDuration: BigNumber;
   let executionDelay: BigNumber;

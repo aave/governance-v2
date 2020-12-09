@@ -1,11 +1,6 @@
 import {expect, use} from 'chai';
 import {ipfsBytes32Hash, MAX_UINT_AMOUNT, ZERO_ADDRESS} from '../helpers/constants';
-import {
-  makeSuite,
-  TestEnv,
-  deployGovernance,
-  deployGovernanceWithoutExecutorAsOwner,
-} from './helpers/make-suite';
+import {makeSuite, TestEnv, deployGovernance, deployGovernanceNoDelay} from './helpers/make-suite';
 import {solidity} from 'ethereum-waffle';
 import {BytesLike, formatEther, parseEther, splitSignature} from 'ethers/lib/utils';
 import {BigNumberish, BigNumber, Wallet} from 'ethers';
@@ -24,7 +19,6 @@ import {
   setBalance,
   expectProposalState,
   getLastProposalId,
-  encodeSetDelay,
 } from './helpers/gov-utils';
 import {deployGovernanceStrategy} from '../helpers/contracts-deployments';
 import {buildPermitParams, getSignatureFromTypedData} from './helpers/permit';
@@ -45,7 +39,7 @@ const proposalStates = {
 
 const snapshots = new Map<string, string>();
 
-makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
+makeSuite('Aave Governance V2 no voting delay ', deployGovernanceNoDelay, (testEnv: TestEnv) => {
   let votingDelay: BigNumber;
   let votingDuration: BigNumber;
   let executionDelay: BigNumber;
@@ -78,29 +72,6 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     // SNAPSHOT: EMPTY GOVERNANCE
     snapshots.set('start', await evmSnapshot());
 
-    // Giving user 1 enough power to propose
-    await setBalance(user1, minimumPower, testEnv);
-
-    const callData = await encodeSetDelay('300', testEnv);
-
-    //Creating first proposal
-    const tx1 = await waitForTx(
-      await gov
-        .connect(user1.signer)
-        .create(executor.address, [gov.address], ['0'], [''], [callData], [false], ipfsBytes32Hash)
-    );
-    // cleaning up user1 balance
-    await emptyBalances([user1], testEnv);
-
-    // fixing constants
-    proposalId = tx1.events?.[0].args?.id;
-    startBlock = BigNumber.from(tx1.blockNumber).add(votingDelay);
-    endBlock = BigNumber.from(tx1.blockNumber).add(votingDelay).add(votingDuration);
-    await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
-
-    // SNAPSHOT: PENDING PROPOSAL
-    snapshots.set('pending', await evmSnapshot());
-
     // Preparing users with different powers for test
     // user 1: 50% min voting power + 2 = 10%+ total power
     await setBalance(user1, minimumPower.div('2').add('2'), testEnv);
@@ -124,12 +95,29 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     expect(await strategy.getVotingPowerAt(user2.address, block)).to.be.equal(
       minimumPower.div('2').add('2').mul(2)
     );
+
+    //Creating first proposal
+    const tx1 = await waitForTx(
+      await gov
+        .connect(user1.signer)
+        .create(executor.address, [ZERO_ADDRESS], ['0'], [''], ['0x'], [false], ipfsBytes32Hash)
+    );
+
+    // fixing constants
+    proposalId = tx1.events?.[0].args?.id;
+    startBlock = BigNumber.from(tx1.blockNumber).add(votingDelay);
+    endBlock = BigNumber.from(tx1.blockNumber).add(votingDelay).add(votingDuration);
+    // delay = 0, should be active
     await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
+
+    // SNAPSHOT PENDING
+    snapshots.set('active', await evmSnapshot());
+
     const balanceAfter = await aave.connect(user1.signer).balanceOf(user1.address);
 
     // Pending => Active
     // => go tto start block
-    await advanceBlockTo(Number(startBlock.add(2).toString()));
+    await advanceBlockTo(Number(startBlock.add(1).toString()));
     await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
 
     // SNAPSHOT: ACTIVE PROPOSAL
@@ -157,253 +145,6 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     // SNAPSHOT: QUEUED PROPOSAL
     executionTime = (await gov.getProposalById(proposalId)).executionTime;
     snapshots.set('queued', await evmSnapshot());
-  });
-  describe('Testing cancel function on queued proposal on gov + exec', async function () {
-    beforeEach(async () => {
-      // Revert to queued state
-      await evmRevert(snapshots.get('queued') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
-      // EVM Snapshots are consumed, need to snapshot again for next test
-      snapshots.set('queued', await evmSnapshot());
-    });
-    it('should not cancel when Threshold is higher than minimum and not guardian', async () => {
-      const {
-        gov,
-        users: [user],
-        minter,
-      } = testEnv;
-      // giving threshold power
-      await setBalance(user, minimumCreatePower, testEnv);
-      // not guardian, no threshold
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
-        'PROPOSITION_CANCELLATION_INVALID'
-      );
-    });
-    it('should cancel a queued proposal when threshold lost and not guardian', async () => {
-      const {
-        gov,
-        executor,
-        users: [user],
-      } = testEnv;
-      // removing threshold power
-      await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-      // active
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-    });
-    it('should not cancel when proposition already canceled', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        executor,
-        users: [user],
-      } = testEnv;
-      // removing threshold power
-      await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
-        'ONLY_BEFORE_EXECUTED'
-      );
-      // deployer is guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId)).to.be.revertedWith(
-        'ONLY_BEFORE_EXECUTED'
-      );
-    });
-    it('should cancel queued prop by guardian, when creator still above threshold', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        executor,
-        users: [user],
-      } = testEnv;
-      // creator still above threshold power
-      await setBalance(user, minimumCreatePower, testEnv);
-      // cancel as guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-    });
-  });
-  describe('Testing execute function', async function () {
-    beforeEach(async () => {
-      await evmRevert(snapshots.get('queued') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
-      snapshots.set('queued', await evmSnapshot());
-    });
-    it('should not execute a canceled prop', async () => {
-      const {
-        gov,
-        deployer,
-        executor,
-        users: [user],
-      } = testEnv;
-      await expect(gov.connect(deployer.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-      await advanceBlock(Number(executionTime.toString()));
-
-      // Execute the propoal
-      const executeTx = gov.connect(user.signer).execute(proposalId);
-
-      await expect(Promise.resolve(executeTx)).to.be.revertedWith('ONLY_QUEUED_PROPOSALS');
-    });
-    it('should not execute a queued prop before timelock', async () => {
-      const {
-        gov,
-        users: [user],
-      } = testEnv;
-
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
-      // 5 sec before delay reached
-      await advanceBlock(Number(executionTime.sub(5).toString()));
-
-      // Execute the propoal
-      const executeTx = gov.connect(user.signer).execute(proposalId);
-
-      await expect(Promise.resolve(executeTx)).to.be.revertedWith('TIMELOCK_NOT_FINISHED');
-    });
-    it('should not execute a queued prop after grace period (expired)', async () => {
-      const {
-        gov,
-        users: [user],
-      } = testEnv;
-
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
-      // 5 sec before delay reached
-      await advanceBlock(Number(executionTime.add(gracePeriod).add(5).toString()));
-
-      // Execute the propoal
-      const executeTx = gov.connect(user.signer).execute(proposalId);
-
-      await expect(Promise.resolve(executeTx)).to.be.revertedWith('ONLY_QUEUED_PROPOSALS');
-      await expectProposalState(proposalId, proposalStates.EXPIRED, testEnv);
-    });
-    it('should execute a proposal', async () => {
-      const {
-        gov,
-        users: [user],
-      } = testEnv;
-      await advanceBlock(Number(executionTime.add(gracePeriod).sub(5).toString()));
-
-      expect(await gov.getVotingDelay()).to.be.equal(votingDelay);
-      // Execute the proposal: changing the delay to 300
-      const executeTx = gov.connect(user.signer).execute(proposalId);
-
-      await expect(Promise.resolve(executeTx))
-        .to.emit(gov, 'ProposalExecuted')
-        .withArgs(proposalId, user.address);
-      expect(await gov.getVotingDelay()).to.be.equal(BigNumber.from('300'));
-    });
-  });
-  describe('Testing cancel function on succeeded proposal', async function () {
-    beforeEach(async () => {
-      await evmRevert(snapshots.get('succeeded') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.SUCCEEDED, testEnv);
-      snapshots.set('succeeded', await evmSnapshot());
-    });
-    it('should not cancel when Threshold is higher than minimum and not guardian', async () => {
-      const {
-        gov,
-        users: [user],
-      } = testEnv;
-      // giving threshold power
-      await setBalance(user, minimumCreatePower, testEnv);
-      // not guardian, no threshold
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
-        'PROPOSITION_CANCELLATION_INVALID'
-      );
-    });
-    it('should cancel a succeeded proposal when threshold lost and not guardian', async () => {
-      const {
-        gov,
-        users: [user],
-        executor,
-      } = testEnv;
-      // removing threshold power
-      await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-      // active
-      await expectProposalState(proposalId, proposalStates.SUCCEEDED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-    });
-    it('should not cancel when proposition already canceled', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        executor,
-        users: [user],
-      } = testEnv;
-      // removing threshold power
-      // cancelled
-      await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-      // active
-      await expectProposalState(proposalId, proposalStates.SUCCEEDED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
-        'ONLY_BEFORE_EXECUTED'
-      );
-      // deployer is guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId)).to.be.revertedWith(
-        'ONLY_BEFORE_EXECUTED'
-      );
-    });
-    it('should cancel succeeded prop by guardian, when creator still above threshold', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        users: [user],
-        executor,
-      } = testEnv;
-      // giving threshold power to creator
-      await setBalance(user, minimumCreatePower, testEnv);
-      // cancel as guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-    });
-    it('should cancel an succeeded proposal when threshold lost and not guardian', async () => {
-      const {
-        gov,
-        executor,
-        users: [user],
-      } = testEnv;
-      // removing threshold power
-      await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-
-      // active
-      await expectProposalState(proposalId, proposalStates.SUCCEEDED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-    });
   });
   describe('Testing queue function', async function () {
     beforeEach(async () => {
@@ -612,200 +353,6 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       await expect(Promise.resolve(votePermitTx))
         .to.emit(gov, 'VoteEmitted')
         .withArgs(proposalId, user3.address, true, balance);
-    });
-  });
-  describe('Testing cancel function on active proposal', async function () {
-    beforeEach(async () => {
-      await evmRevert(snapshots.get('active') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
-      snapshots.set('active', await evmSnapshot());
-    });
-    it('should not cancel when Threshold is higher than minimum and not guardian', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        users: [user],
-        aave,
-        minter,
-      } = testEnv;
-      // giving threshold power
-      await setBalance(user, minimumCreatePower, testEnv);
-      // not guardian, no threshold
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
-        'PROPOSITION_CANCELLATION_INVALID'
-      );
-    });
-    it('should cancel a active proposal when threshold lost and not guardian', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        users: [user],
-        aave,
-        minter,
-        executor,
-      } = testEnv;
-      // removing threshold power
-      await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-      // active
-      await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-    });
-    it('should not cancel when proposition already canceled', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        users: [user],
-        aave,
-        minter,
-        executor,
-      } = testEnv;
-      // removing threshold power
-      // cancelled
-      await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-      // active
-      await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
-        'ONLY_BEFORE_EXECUTED'
-      );
-      // deployer is guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId)).to.be.revertedWith(
-        'ONLY_BEFORE_EXECUTED'
-      );
-    });
-    it('should cancel active prop by guardian, when creator still above threshold', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        users: [user],
-        aave,
-        executor,
-        minter,
-      } = testEnv;
-      // giving threshold power to creator
-      await setBalance(user, minimumCreatePower, testEnv);
-      // cancel as guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-    });
-    it('should cancel an active proposal when threshold lost and not guardian', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        users: [user],
-        aave,
-        executor,
-        minter,
-      } = testEnv;
-      // removing threshold power
-      await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-
-      // active
-      await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-    });
-  });
-  describe('Testing cancel function pending proposal', async function () {
-    beforeEach(async () => {
-      await evmRevert(snapshots.get('pending') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
-      snapshots.set('pending', await evmSnapshot());
-    });
-    it('should not cancel when Threshold is higher than minimum and not guardian', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        users: [user],
-        aave,
-        minter,
-      } = testEnv;
-      // giving threshold power
-      await setBalance(user, minimumCreatePower, testEnv);
-      // not guardian, no threshold
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
-        'PROPOSITION_CANCELLATION_INVALID'
-      );
-    });
-    it('should cancel a pending proposal when threshold lost and not guardian', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        executor,
-        users: [user],
-        aave,
-        minter,
-      } = testEnv;
-      // removing threshold power
-      await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-      // pending
-      await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-    });
-    it('should not cancel when proposition already canceled', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        executor,
-        users: [user],
-        aave,
-        minter,
-      } = testEnv;
-      // removing threshold power
-      // cancelled
-      await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-      // pending
-      await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
-        'ONLY_BEFORE_EXECUTED'
-      );
-      // deployer is guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId)).to.be.revertedWith(
-        'ONLY_BEFORE_EXECUTED'
-      );
-    });
-    it('should cancel pending prop by guardian, when creator still above threshold', async () => {
-      const {
-        gov,
-        deployer, // deployer is guardian
-        users: [user],
-        executor,
-        aave,
-        minter,
-      } = testEnv;
-      // giving threshold power to creator
-      await setBalance(user, minimumCreatePower, testEnv);
-      // cancel as guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId))
-        .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
-        .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
     });
   });
   describe('Testing create function', async function () {
@@ -1184,74 +731,3 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     });
   });
 });
-makeSuite(
-  'Aave Governance V2 tests: admin functions',
-  deployGovernanceWithoutExecutorAsOwner,
-  (testEnv: TestEnv) => {
-    describe('Testing setter functions', async function () {
-      it('Set governance strategy', async () => {
-        const {gov, deployer, aave, stkAave} = testEnv;
-
-        const strategy = await deployGovernanceStrategy(aave.address, stkAave.address);
-
-        // Set new strategy
-        await gov.connect(deployer.signer).setGovernanceStrategy(strategy.address);
-        const govStrategy = await gov.getGovernanceStrategy();
-
-        expect(govStrategy).to.equal(strategy.address);
-      });
-
-      it('Set voting delay', async () => {
-        const {gov, deployer} = testEnv;
-
-        // Set voting delay
-        await gov.connect(deployer.signer).setVotingDelay('10');
-        const govVotingDelay = await gov.getVotingDelay();
-
-        expect(govVotingDelay).to.equal('10');
-      });
-    });
-    describe('Testing executor auth/unautho functions', async function () {
-      it('Unauthorize executor', async () => {
-        const {gov, deployer, executor} = testEnv;
-
-        // Unauthorize executor
-        await gov.connect(deployer.signer).unauthorizeExecutors([executor.address]);
-        const isAuthorized = await gov
-          .connect(deployer.signer)
-          .isExecutorAuthorized(executor.address);
-
-        expect(isAuthorized).to.equal(false);
-      });
-
-      it('Authorize executor', async () => {
-        const {
-          gov,
-          deployer, // is owner of gov
-          executor,
-        } = testEnv;
-
-        // Authorize
-        await gov.connect(deployer.signer).authorizeExecutors([executor.address]);
-        const isAuthorized = await gov
-          .connect(deployer.signer)
-          .isExecutorAuthorized(executor.address);
-
-        expect(isAuthorized).to.equal(true);
-      });
-    });
-    describe('Testing guardian functions', async function () {
-      it('Abdicate guardian', async () => {
-        const {
-          gov,
-          deployer,
-          users: [user],
-        } = testEnv;
-
-        await gov.connect(deployer.signer).__abdicate();
-        const guardian = await gov.connect(deployer.signer).getGuardian();
-        expect(guardian).to.equal(ZERO_ADDRESS);
-      });
-    });
-  }
-);

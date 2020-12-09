@@ -483,7 +483,6 @@ contract AaveGovernanceV2 is Ownable, IAaveGovernanceV2 {
   }
 
   function _setVotingDelay(uint256 votingDelay) internal {
-    require(votingDelay > 0, 'INVALID_ZERO_DELAY');
     _votingDelay = votingDelay;
 
     emit VotingDelayChanged(votingDelay, msg.sender);

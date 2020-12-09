@@ -14,7 +14,8 @@
     "ci:test": "npm run compile:force:quiet && npm run test",
     "ci:clean": "rm -rf ./artifacts ./cache ./types ./coverage*",
     "migrate:dev": "npm run compile:force:quiet && hardhat migrate:dev",
-    "load:npm": "npm config set @aave-tech:registry https://gitlab.com/api/v4/projects/19392283/packages/npm/ && npm config set '//gitlab.com/api/v4/packages/npm/:_authToken' ${GITLAB_ACCESS_TOKEN} && npm config set '//gitlab.com/api/v4/projects/19392283/packages/npm/:_authToken' ${GITLAB_ACCESS_TOKEN}"
+    "load:npm": "npm config set @aave-tech:registry https://gitlab.com/api/v4/projects/19392283/packages/npm/ && npm config set '//gitlab.com/api/v4/packages/npm/:_authToken' ${GITLAB_ACCESS_TOKEN} && npm config set '//gitlab.com/api/v4/projects/19392283/packages/npm/:_authToken' ${GITLAB_ACCESS_TOKEN}",
+    "types-gen": "hardhat typechain"
   },
   "devDependencies": {
     "@nomiclabs/buidler-waffle": "2.0.0",
