@@ -1,6 +1,6 @@
 import {expect, use} from 'chai';
 import {ipfsBytes32Hash, MAX_UINT_AMOUNT, ZERO_ADDRESS} from '../helpers/constants';
-import {makeSuite, TestEnv, deployGovernance, deployGovernanceNoDelay} from './helpers/make-suite';
+import {makeSuite, TestEnv, deployGovernanceNoDelay} from './helpers/make-suite';
 import {solidity} from 'ethereum-waffle';
 import {BytesLike, formatEther, parseEther, splitSignature} from 'ethers/lib/utils';
 import {BigNumberish, BigNumber, Wallet} from 'ethers';
@@ -20,7 +20,6 @@ import {
   expectProposalState,
   getLastProposalId,
 } from './helpers/gov-utils';
-import {deployGovernanceStrategy} from '../helpers/contracts-deployments';
 import {buildPermitParams, getSignatureFromTypedData} from './helpers/permit';
 import {fail} from 'assert';
 

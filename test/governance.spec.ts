@@ -23,7 +23,6 @@ import {
   getInitContractData,
   setBalance,
   expectProposalState,
-  getLastProposalId,
   encodeSetDelay,
 } from './helpers/gov-utils';
 import {deployGovernanceStrategy} from '../helpers/contracts-deployments';
@@ -51,7 +50,9 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
   let executionDelay: BigNumber;
   let minimumPower: BigNumber;
   let minimumCreatePower: BigNumber;
-  let proposalId: BigNumber;
+  let proposal1Id: BigNumber;
+  let proposal2Id: BigNumber;
+  let proposal3Id: BigNumber;
   let startBlock: BigNumber;
   let endBlock: BigNumber;
   let executionTime: BigNumber;
@@ -81,22 +82,54 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     // Giving user 1 enough power to propose
     await setBalance(user1, minimumPower, testEnv);
 
-    const callData = await encodeSetDelay('300', testEnv);
+    const callData = await encodeSetDelay('400', testEnv);
 
-    //Creating first proposal
+    //Creating first proposal: Changing delay to 300 via no sig + calldata
     const tx1 = await waitForTx(
       await gov
         .connect(user1.signer)
         .create(executor.address, [gov.address], ['0'], [''], [callData], [false], ipfsBytes32Hash)
     );
+    //Creating 2nd proposal: Changing delay to 300 via sig + argument data
+    const encodedArgument2 = DRE.ethers.utils.defaultAbiCoder.encode(['uint'], [300]);
+    const tx2 = await waitForTx(
+      await gov
+        .connect(user1.signer)
+        .create(
+          executor.address,
+          [gov.address],
+          ['0'],
+          ['setVotingDelay(uint256)'],
+          [encodedArgument2],
+          [false],
+          ipfsBytes32Hash
+        )
+    );
+
+    const encodedArgument3 = DRE.ethers.utils.defaultAbiCoder.encode(['address'], [user1.address]);
+    const tx3 = await waitForTx(
+      await gov
+        .connect(user1.signer)
+        .create(
+          executor.address,
+          [executor.address],
+          ['0'],
+          ['setPendingAdmin(address)'],
+          [encodedArgument3],
+          [false],
+          ipfsBytes32Hash
+        )
+    );
     // cleaning up user1 balance
     await emptyBalances([user1], testEnv);
 
     // fixing constants
-    proposalId = tx1.events?.[0].args?.id;
-    startBlock = BigNumber.from(tx1.blockNumber).add(votingDelay);
-    endBlock = BigNumber.from(tx1.blockNumber).add(votingDelay).add(votingDuration);
-    await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
+    proposal1Id = tx1.events?.[0].args?.id;
+    proposal2Id = tx2.events?.[0].args?.id;
+    proposal3Id = tx3.events?.[0].args?.id;
+    startBlock = BigNumber.from(tx2.blockNumber).add(votingDelay);
+    endBlock = BigNumber.from(tx2.blockNumber).add(votingDelay).add(votingDuration);
+    await expectProposalState(proposal2Id, proposalStates.PENDING, testEnv);
 
     // SNAPSHOT: PENDING PROPOSAL
     snapshots.set('pending', await evmSnapshot());
@@ -124,46 +157,55 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     expect(await strategy.getVotingPowerAt(user2.address, block)).to.be.equal(
       minimumPower.div('2').add('2').mul(2)
     );
-    await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
+    await expectProposalState(proposal3Id, proposalStates.PENDING, testEnv);
+    await expectProposalState(proposal2Id, proposalStates.PENDING, testEnv);
+    await expectProposalState(proposal1Id, proposalStates.PENDING, testEnv);
     const balanceAfter = await aave.connect(user1.signer).balanceOf(user1.address);
-
     // Pending => Active
     // => go tto start block
     await advanceBlockTo(Number(startBlock.add(2).toString()));
-    await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
+    await expectProposalState(proposal3Id, proposalStates.ACTIVE, testEnv);
+    await expectProposalState(proposal2Id, proposalStates.ACTIVE, testEnv);
+    await expectProposalState(proposal1Id, proposalStates.ACTIVE, testEnv);
 
     // SNAPSHOT: ACTIVE PROPOSAL
     snapshots.set('active', await evmSnapshot());
 
-    // Active => Succeeded, user 1 + user 2 votes > threshold
-    await expect(gov.connect(user1.signer).submitVote(proposalId, true))
+    // Active => Succeeded, user 2 votes + delegated from 5 > threshold
+    await expect(gov.connect(user2.signer).submitVote(proposal2Id, true))
       .to.emit(gov, 'VoteEmitted')
-      .withArgs(proposalId, user1.address, true, balanceAfter);
-    await expect(gov.connect(user2.signer).submitVote(proposalId, true))
+      .withArgs(proposal2Id, user2.address, true, balanceAfter.mul('2'));
+    await expect(gov.connect(user2.signer).submitVote(proposal1Id, true))
       .to.emit(gov, 'VoteEmitted')
-      .withArgs(proposalId, user2.address, true, balanceAfter.mul('2'));
-
+      .withArgs(proposal1Id, user2.address, true, balanceAfter.mul('2'));
+    await expect(gov.connect(user2.signer).submitVote(proposal3Id, true))
+      .to.emit(gov, 'VoteEmitted')
+      .withArgs(proposal3Id, user2.address, true, balanceAfter.mul('2'));
     // go to end of voting period
     await advanceBlockTo(Number(endBlock.add('3').toString()));
-    await expectProposalState(proposalId, proposalStates.SUCCEEDED, testEnv);
+    await expectProposalState(proposal3Id, proposalStates.SUCCEEDED, testEnv);
+    await expectProposalState(proposal2Id, proposalStates.SUCCEEDED, testEnv);
+    await expectProposalState(proposal1Id, proposalStates.SUCCEEDED, testEnv);
 
     // SNAPSHOT: SUCCEEDED PROPOSAL
     snapshots.set('succeeded', await evmSnapshot());
 
     // Succeeded => Queued:
-    await (await gov.connect(user1.signer).queue(proposalId)).wait();
-    await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
-
+    await (await gov.connect(user1.signer).queue(proposal1Id)).wait();
+    await (await gov.connect(user1.signer).queue(proposal2Id)).wait();
+    await (await gov.connect(user1.signer).queue(proposal3Id)).wait();
+    await expectProposalState(proposal1Id, proposalStates.QUEUED, testEnv);
+    await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
+    await expectProposalState(proposal3Id, proposalStates.QUEUED, testEnv);
     // SNAPSHOT: QUEUED PROPOSAL
-    executionTime = (await gov.getProposalById(proposalId)).executionTime;
+    executionTime = (await gov.getProposalById(proposal2Id)).executionTime;
     snapshots.set('queued', await evmSnapshot());
   });
   describe('Testing cancel function on queued proposal on gov + exec', async function () {
     beforeEach(async () => {
       // Revert to queued state
       await evmRevert(snapshots.get('queued') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
       // EVM Snapshots are consumed, need to snapshot again for next test
       snapshots.set('queued', await evmSnapshot());
     });
@@ -176,7 +218,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // giving threshold power
       await setBalance(user, minimumCreatePower, testEnv);
       // not guardian, no threshold
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
+      await expect(gov.connect(user.signer).cancel(proposal2Id)).to.be.revertedWith(
         'PROPOSITION_CANCELLATION_INVALID'
       );
     });
@@ -189,13 +231,13 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
       // active
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
+      await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
 
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
     it('should not cancel when proposition already canceled', async () => {
       const {
@@ -206,17 +248,17 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       } = testEnv;
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
+      await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id)).to.be.revertedWith(
         'ONLY_BEFORE_EXECUTED'
       );
       // deployer is guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId)).to.be.revertedWith(
+      await expect(gov.connect(deployer.signer).cancel(proposal2Id)).to.be.revertedWith(
         'ONLY_BEFORE_EXECUTED'
       );
     });
@@ -230,18 +272,17 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // creator still above threshold power
       await setBalance(user, minimumCreatePower, testEnv);
       // cancel as guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId))
+      await expect(gov.connect(deployer.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
   });
   describe('Testing execute function', async function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('queued') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
       snapshots.set('queued', await evmSnapshot());
     });
     it('should not execute a canceled prop', async () => {
@@ -251,15 +292,15 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         executor,
         users: [user],
       } = testEnv;
-      await expect(gov.connect(deployer.signer).cancel(proposalId))
+      await expect(gov.connect(deployer.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
       await advanceBlock(Number(executionTime.toString()));
 
       // Execute the propoal
-      const executeTx = gov.connect(user.signer).execute(proposalId);
+      const executeTx = gov.connect(user.signer).execute(proposal2Id);
 
       await expect(Promise.resolve(executeTx)).to.be.revertedWith('ONLY_QUEUED_PROPOSALS');
     });
@@ -269,12 +310,12 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         users: [user],
       } = testEnv;
 
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
       // 5 sec before delay reached
       await advanceBlock(Number(executionTime.sub(5).toString()));
 
       // Execute the propoal
-      const executeTx = gov.connect(user.signer).execute(proposalId);
+      const executeTx = gov.connect(user.signer).execute(proposal2Id);
 
       await expect(Promise.resolve(executeTx)).to.be.revertedWith('TIMELOCK_NOT_FINISHED');
     });
@@ -284,17 +325,17 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         users: [user],
       } = testEnv;
 
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
       // 5 sec before delay reached
       await advanceBlock(Number(executionTime.add(gracePeriod).add(5).toString()));
 
       // Execute the propoal
-      const executeTx = gov.connect(user.signer).execute(proposalId);
+      const executeTx = gov.connect(user.signer).execute(proposal2Id);
 
       await expect(Promise.resolve(executeTx)).to.be.revertedWith('ONLY_QUEUED_PROPOSALS');
-      await expectProposalState(proposalId, proposalStates.EXPIRED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.EXPIRED, testEnv);
     });
-    it('should execute a proposal', async () => {
+    it('should execute one proposal with no sig + calldata', async () => {
       const {
         gov,
         users: [user],
@@ -303,19 +344,57 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
 
       expect(await gov.getVotingDelay()).to.be.equal(votingDelay);
       // Execute the proposal: changing the delay to 300
-      const executeTx = gov.connect(user.signer).execute(proposalId);
+      const executeTx = gov.connect(user.signer).execute(proposal2Id);
 
       await expect(Promise.resolve(executeTx))
         .to.emit(gov, 'ProposalExecuted')
-        .withArgs(proposalId, user.address);
+        .withArgs(proposal2Id, user.address);
       expect(await gov.getVotingDelay()).to.be.equal(BigNumber.from('300'));
+    });
+    it('should execute one proposal with sig + argument', async () => {
+      const {
+        gov,
+        users: [user],
+      } = testEnv;
+      await advanceBlock(Number(executionTime.add(gracePeriod).sub(5).toString()));
+
+      expect(await gov.getVotingDelay()).to.be.equal(votingDelay);
+
+      // execute the second proposal: changing delay to 400
+      const executeTx1 = gov.connect(user.signer).execute(proposal1Id);
+
+      await expect(Promise.resolve(executeTx1))
+        .to.emit(gov, 'ProposalExecuted')
+        .withArgs(proposal1Id, user.address);
+      expect(await gov.getVotingDelay()).to.be.equal(BigNumber.from('400'));
+    });
+    it('should change admin via proposal', async () => {
+      const {
+        gov,
+        executor,
+        users: [user],
+      } = testEnv;
+      await advanceBlock(Number(executionTime.add(gracePeriod).sub(5).toString()));
+
+      expect(await executor.getPendingAdmin()).to.be.equal(ZERO_ADDRESS);
+
+      // execute the second proposal: changing delay to 400
+      const executeTx3 = gov.connect(user.signer).execute(proposal3Id);
+
+      await expect(Promise.resolve(executeTx3))
+        .to.emit(gov, 'ProposalExecuted')
+        .withArgs(proposal3Id, user.address);
+      expect(await executor.getPendingAdmin()).to.be.equal(user.address);
+      expect(await executor.getAdmin()).to.be.equal(gov.address);
+
+      await (await executor.connect(user.signer).acceptAdmin()).wait();
+      expect(await executor.getAdmin()).to.be.equal(user.address);
     });
   });
   describe('Testing cancel function on succeeded proposal', async function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('succeeded') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.SUCCEEDED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.SUCCEEDED, testEnv);
       snapshots.set('succeeded', await evmSnapshot());
     });
     it('should not cancel when Threshold is higher than minimum and not guardian', async () => {
@@ -326,7 +405,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // giving threshold power
       await setBalance(user, minimumCreatePower, testEnv);
       // not guardian, no threshold
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
+      await expect(gov.connect(user.signer).cancel(proposal2Id)).to.be.revertedWith(
         'PROPOSITION_CANCELLATION_INVALID'
       );
     });
@@ -339,12 +418,12 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
       // active
-      await expectProposalState(proposalId, proposalStates.SUCCEEDED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
+      await expectProposalState(proposal2Id, proposalStates.SUCCEEDED, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
     it('should not cancel when proposition already canceled', async () => {
       const {
@@ -357,17 +436,17 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // cancelled
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
       // active
-      await expectProposalState(proposalId, proposalStates.SUCCEEDED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
+      await expectProposalState(proposal2Id, proposalStates.SUCCEEDED, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id)).to.be.revertedWith(
         'ONLY_BEFORE_EXECUTED'
       );
       // deployer is guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId)).to.be.revertedWith(
+      await expect(gov.connect(deployer.signer).cancel(proposal2Id)).to.be.revertedWith(
         'ONLY_BEFORE_EXECUTED'
       );
     });
@@ -381,11 +460,11 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // giving threshold power to creator
       await setBalance(user, minimumCreatePower, testEnv);
       // cancel as guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId))
+      await expect(gov.connect(deployer.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
     it('should cancel an succeeded proposal when threshold lost and not guardian', async () => {
       const {
@@ -397,19 +476,18 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
 
       // active
-      await expectProposalState(proposalId, proposalStates.SUCCEEDED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
+      await expectProposalState(proposal2Id, proposalStates.SUCCEEDED, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
   });
   describe('Testing queue function', async function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('succeeded') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.SUCCEEDED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.SUCCEEDED, testEnv);
       snapshots.set('succeeded', await evmSnapshot());
     });
     it('Queue a proposal', async () => {
@@ -418,7 +496,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         users: [user],
       } = testEnv;
       // Queue
-      const queueTx = await gov.connect(user.signer).queue(proposalId);
+      const queueTx = await gov.connect(user.signer).queue(proposal2Id);
       const queueTxResponse = await waitForTx(queueTx);
       const blockTime = await DRE.ethers.provider.getBlock(queueTxResponse.blockNumber);
 
@@ -426,15 +504,14 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
 
       await expect(Promise.resolve(queueTx))
         .to.emit(gov, 'ProposalQueued')
-        .withArgs(proposalId, executionTime, user.address);
-      await expectProposalState(proposalId, proposalStates.QUEUED, testEnv);
+        .withArgs(proposal2Id, executionTime, user.address);
+      await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
     });
   });
   describe('Testing voting functions', async function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('active') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.ACTIVE, testEnv);
       snapshots.set('active', await evmSnapshot());
     });
     it('Vote a proposal without quorum => proposal failed', async () => {
@@ -448,14 +525,14 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
 
       // user 1 has only half of enough voting power
       const balance = await aave.connect(user1.signer).balanceOf(user1.address);
-      await expect(gov.connect(user1.signer).submitVote(proposalId, true))
+      await expect(gov.connect(user1.signer).submitVote(proposal2Id, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user1.address, true, balance);
+        .withArgs(proposal2Id, user1.address, true, balance);
 
       await advanceBlockTo(Number(endBlock.add('9').toString()));
-      expect(await executor.isQuorumValid(gov.address, proposalId)).to.be.equal(false);
-      expect(await executor.isVoteDifferentialValid(gov.address, proposalId)).to.be.equal(true);
-      expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
+      expect(await executor.isQuorumValid(gov.address, proposal2Id)).to.be.equal(false);
+      expect(await executor.isVoteDifferentialValid(gov.address, proposal2Id)).to.be.equal(true);
+      expect(await gov.connect(user1.signer).getProposalState(proposal2Id)).to.be.equal(
         proposalStates.FAILED
       );
     });
@@ -470,21 +547,21 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       } = testEnv;
       // User 1 + User 2 power > voting po<wer, see before() function
       const balance1 = await aave.connect(user1.signer).balanceOf(user1.address);
-      await expect(gov.connect(user1.signer).submitVote(proposalId, true))
+      await expect(gov.connect(user1.signer).submitVote(proposal2Id, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user1.address, true, balance1);
+        .withArgs(proposal2Id, user1.address, true, balance1);
       //  user 2 has received delegation from user 5
       const power2 = await strategy.getVotingPowerAt(user2.address, startBlock);
-      await expect(gov.connect(user2.signer).submitVote(proposalId, true))
+      await expect(gov.connect(user2.signer).submitVote(proposal2Id, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user2.address, true, power2);
+        .withArgs(proposal2Id, user2.address, true, power2);
 
       // active => succeeded
 
       await advanceBlockTo(Number(endBlock.add('10').toString()));
-      expect(await executor.isQuorumValid(gov.address, proposalId)).to.be.equal(true);
-      expect(await executor.isVoteDifferentialValid(gov.address, proposalId)).to.be.equal(true);
-      expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
+      expect(await executor.isQuorumValid(gov.address, proposal2Id)).to.be.equal(true);
+      expect(await executor.isVoteDifferentialValid(gov.address, proposal2Id)).to.be.equal(true);
+      expect(await gov.connect(user1.signer).getProposalState(proposal2Id)).to.be.equal(
         proposalStates.SUCCEEDED
       );
     });
@@ -503,14 +580,14 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       expect(await strategy.getVotingPowerAt(user2.address, startBlock)).to.be.equal(
         balance2.add(balance5)
       );
-      await expect(gov.connect(user2.signer).submitVote(proposalId, true))
+      await expect(gov.connect(user2.signer).submitVote(proposal2Id, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user2.address, true, balance2.add(balance5));
+        .withArgs(proposal2Id, user2.address, true, balance2.add(balance5));
       // active => succeeded
       await advanceBlockTo(Number(endBlock.add('11').toString()));
-      expect(await executor.isQuorumValid(gov.address, proposalId)).to.be.equal(true);
-      expect(await executor.isVoteDifferentialValid(gov.address, proposalId)).to.be.equal(true);
-      expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
+      expect(await executor.isQuorumValid(gov.address, proposal2Id)).to.be.equal(true);
+      expect(await executor.isVoteDifferentialValid(gov.address, proposal2Id)).to.be.equal(true);
+      expect(await gov.connect(user1.signer).getProposalState(proposal2Id)).to.be.equal(
         proposalStates.SUCCEEDED
       );
     });
@@ -527,20 +604,20 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // User 2 + User 5 delegation = 20% power, voting yes
       //  user 2 has received delegation from user 5
       const power2 = await strategy.getVotingPowerAt(user2.address, startBlock);
-      await expect(gov.connect(user2.signer).submitVote(proposalId, true))
+      await expect(gov.connect(user2.signer).submitVote(proposal2Id, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user2.address, true, power2);
+        .withArgs(proposal2Id, user2.address, true, power2);
 
       // User 4 = 15% Power, voting no
       const balance4 = await aave.connect(user4.signer).balanceOf(user4.address);
-      await expect(gov.connect(user4.signer).submitVote(proposalId, false))
+      await expect(gov.connect(user4.signer).submitVote(proposal2Id, false))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user4.address, false, balance4);
+        .withArgs(proposal2Id, user4.address, false, balance4);
 
       await advanceBlockTo(Number(endBlock.add('12').toString()));
-      expect(await executor.isQuorumValid(gov.address, proposalId)).to.be.equal(true);
-      expect(await executor.isVoteDifferentialValid(gov.address, proposalId)).to.be.equal(false);
-      expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
+      expect(await executor.isQuorumValid(gov.address, proposal2Id)).to.be.equal(true);
+      expect(await executor.isVoteDifferentialValid(gov.address, proposal2Id)).to.be.equal(false);
+      expect(await gov.connect(user1.signer).getProposalState(proposal2Id)).to.be.equal(
         proposalStates.FAILED
       );
     });
@@ -557,26 +634,26 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // User 2 + User 5 delegation = 20% power, voting yes
       //  user 2 has received delegation from user 5
       const power2 = await strategy.getVotingPowerAt(user2.address, startBlock);
-      await expect(gov.connect(user2.signer).submitVote(proposalId, true))
+      await expect(gov.connect(user2.signer).submitVote(proposal2Id, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user2.address, true, power2);
+        .withArgs(proposal2Id, user2.address, true, power2);
 
       // User 4 = 15% Power, voting no
       const balance4 = await aave.connect(user4.signer).balanceOf(user4.address);
-      await expect(gov.connect(user4.signer).submitVote(proposalId, false))
+      await expect(gov.connect(user4.signer).submitVote(proposal2Id, false))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user4.address, false, balance4);
+        .withArgs(proposal2Id, user4.address, false, balance4);
 
       // User 3 makes the vote swing
       const balance3 = await aave.connect(user3.signer).balanceOf(user3.address);
-      await expect(gov.connect(user3.signer).submitVote(proposalId, true))
+      await expect(gov.connect(user3.signer).submitVote(proposal2Id, true))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user3.address, true, balance3);
+        .withArgs(proposal2Id, user3.address, true, balance3);
 
       await advanceBlockTo(Number(endBlock.add('13').toString()));
-      expect(await executor.isQuorumValid(gov.address, proposalId)).to.be.equal(true);
-      expect(await executor.isVoteDifferentialValid(gov.address, proposalId)).to.be.equal(true);
-      expect(await gov.connect(user1.signer).getProposalState(proposalId)).to.be.equal(
+      expect(await executor.isQuorumValid(gov.address, proposal2Id)).to.be.equal(true);
+      expect(await executor.isVoteDifferentialValid(gov.address, proposal2Id)).to.be.equal(true);
+      expect(await gov.connect(user1.signer).getProposalState(proposal2Id)).to.be.equal(
         proposalStates.SUCCEEDED
       );
     });
@@ -597,7 +674,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       }
 
       // Prepare signature
-      const msgParams = buildPermitParams(chainId, gov.address, proposalId.toString(), true);
+      const msgParams = buildPermitParams(chainId, gov.address, proposal2Id.toString(), true);
       const ownerPrivateKey = require('../test-wallets.js').accounts[4].secretKey; // deployer, minter, user1, user2, user3
 
       const {v, r, s} = getSignatureFromTypedData(ownerPrivateKey, msgParams);
@@ -607,18 +684,17 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // Publish vote by signature using other address as relayer
       const votePermitTx = await gov
         .connect(user3.signer)
-        .submitVoteBySignature(proposalId, true, v, r, s);
+        .submitVoteBySignature(proposal2Id, true, v, r, s);
 
       await expect(Promise.resolve(votePermitTx))
         .to.emit(gov, 'VoteEmitted')
-        .withArgs(proposalId, user3.address, true, balance);
+        .withArgs(proposal2Id, user3.address, true, balance);
     });
   });
   describe('Testing cancel function on active proposal', async function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('active') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.ACTIVE, testEnv);
       snapshots.set('active', await evmSnapshot());
     });
     it('should not cancel when Threshold is higher than minimum and not guardian', async () => {
@@ -632,7 +708,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // giving threshold power
       await setBalance(user, minimumCreatePower, testEnv);
       // not guardian, no threshold
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
+      await expect(gov.connect(user.signer).cancel(proposal2Id)).to.be.revertedWith(
         'PROPOSITION_CANCELLATION_INVALID'
       );
     });
@@ -648,12 +724,12 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
       // active
-      await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
+      await expectProposalState(proposal2Id, proposalStates.ACTIVE, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
     it('should not cancel when proposition already canceled', async () => {
       const {
@@ -668,17 +744,17 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // cancelled
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
       // active
-      await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
+      await expectProposalState(proposal2Id, proposalStates.ACTIVE, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id)).to.be.revertedWith(
         'ONLY_BEFORE_EXECUTED'
       );
       // deployer is guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId)).to.be.revertedWith(
+      await expect(gov.connect(deployer.signer).cancel(proposal2Id)).to.be.revertedWith(
         'ONLY_BEFORE_EXECUTED'
       );
     });
@@ -694,11 +770,11 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // giving threshold power to creator
       await setBalance(user, minimumCreatePower, testEnv);
       // cancel as guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId))
+      await expect(gov.connect(deployer.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
     it('should cancel an active proposal when threshold lost and not guardian', async () => {
       const {
@@ -713,19 +789,18 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
 
       // active
-      await expectProposalState(proposalId, proposalStates.ACTIVE, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
+      await expectProposalState(proposal2Id, proposalStates.ACTIVE, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
   });
   describe('Testing cancel function pending proposal', async function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('pending') || '1');
-      proposalId = await getLastProposalId(testEnv);
-      await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.PENDING, testEnv);
       snapshots.set('pending', await evmSnapshot());
     });
     it('should not cancel when Threshold is higher than minimum and not guardian', async () => {
@@ -739,7 +814,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // giving threshold power
       await setBalance(user, minimumCreatePower, testEnv);
       // not guardian, no threshold
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
+      await expect(gov.connect(user.signer).cancel(proposal2Id)).to.be.revertedWith(
         'PROPOSITION_CANCELLATION_INVALID'
       );
     });
@@ -755,12 +830,12 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
       // pending
-      await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
+      await expectProposalState(proposal2Id, proposalStates.PENDING, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
     it('should not cancel when proposition already canceled', async () => {
       const {
@@ -775,17 +850,17 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // cancelled
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
       // pending
-      await expectProposalState(proposalId, proposalStates.PENDING, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId))
+      await expectProposalState(proposal2Id, proposalStates.PENDING, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
-      await expect(gov.connect(user.signer).cancel(proposalId)).to.be.revertedWith(
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
+      await expect(gov.connect(user.signer).cancel(proposal2Id)).to.be.revertedWith(
         'ONLY_BEFORE_EXECUTED'
       );
       // deployer is guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId)).to.be.revertedWith(
+      await expect(gov.connect(deployer.signer).cancel(proposal2Id)).to.be.revertedWith(
         'ONLY_BEFORE_EXECUTED'
       );
     });
@@ -801,11 +876,11 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // giving threshold power to creator
       await setBalance(user, minimumCreatePower, testEnv);
       // cancel as guardian
-      await expect(gov.connect(deployer.signer).cancel(proposalId))
+      await expect(gov.connect(deployer.signer).cancel(proposal2Id))
         .to.emit(gov, 'ProposalCanceled')
-        .withArgs(proposalId)
+        .withArgs(proposal2Id)
         .to.emit(executor, 'CancelledAction');
-      await expectProposalState(proposalId, proposalStates.CANCELED, testEnv);
+      await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
   });
   describe('Testing create function', async function () {
@@ -814,7 +889,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       snapshots.set('start', await evmSnapshot());
       const {gov} = testEnv;
       let currentCount = await gov.getProposalsCount();
-      proposalId = currentCount.eq('0') ? currentCount : currentCount.sub('1');
+      proposal2Id = currentCount.eq('0') ? currentCount : currentCount.sub('1');
     });
     it('should not create a proposal when proposer has not enought power', async () => {
       const {
