@@ -7,36 +7,35 @@
 ## Planned configurations for mainnet
 
 ### AaveGovernanceV2
-- governanceStrategy = GovernanceStrategy, based on AAVE and stkAAVE
-- votingDelay = 1 block
-- guardian = multisig contract
-- executors = 2 different, a short/less strict timelock and a long/more strict one
-- owner = Executor (long)
+- voting delay (time between a proposal is submitted and the voting is opened): 0 blocks, as for us this process is done beforehand in the governance forum
+- guardian: Aave Guardian multisig
+- executors whitelisted: Executor (short) and Executor (long)
+- owner (entity able to change the strategy, voting delay and authorize/unauthorize executors): Executor 2, the long timelock 
 
 ### Executor (short)
-- admin = the AaveGovernanceV2
-- delay = 1 day
-- gracePeriod = 3 days
-- minimumDelay = 1 day
-- maximumDelay = 3 days
-- propositionThreshold = 1%
-- voteDuration = 3 days
-- voteDifferential = 0.5%
-- minimumQuorum = 2%
+It will control the whole Aave protocol v1, the token distributor used in v1, the contract collecting the fees of v1, the Reserve Ecosystem of AAVE and any change in this timelock itself
+- admin (the only address enable to interact with this executor): Aave Governance v2
+- delay (time between a proposals passes and its actions get executed): 1 day
+- grace period (time after the delay during which the proposal can be executed): 5 days
+- proposition threshold: 0.5%
+- voting duration: 3 days
+- vote differential: 0.5%
+- quorum: 2%
 
 ### Executor (long)
-- admin = the AaveGovernanceV2
-- delay = 2 days
-- gracePeriod = 7 days
-- minimumDelay = 1 day
-- maximumDelay = 7 days
-- propositionThreshold = 2%
-- voteDuration = 7 days
-- voteDifferential = 15%
-- minimumQuorum = 20%
+It will control the upgradeability of the AAVE token, the stkAAVE, any change in the parameters of the Governance v2 and any change in the parameters of this timelock itself
+- admin: Aave Governance v2
+- delay: 7 days
+- grace period: 5 days
+- proposition threshold: 2%
+- voting duration: 10 days
+- vote differential: 15%
+- quorum: 20%
 
-### GovernanceStrategy
-- With AAVE and stkAAVE as voting assets
+### Governance strategy (the contract determining how the voting/proposition powers are calculated)
+- Based on AAVE+stkAAVE
+- Voting and proposition power are: balanceOfAAVE + delegationReceivedOfAAVE + balanceOfstkAAVE + delegationReceivedOfstkAAVE (with delegation being voting or proposition depending on the case)
+- Total voting and proposition supply: AAVE supply
 
 
 ## Setup
