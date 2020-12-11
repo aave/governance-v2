@@ -6,7 +6,7 @@
 
 ## Audits
 
-The Aave Governance V2 has been audited by Peckshied, with the final report [here](./audits/PeckShield-Audit-AaveGovernance2.pdf)
+The Aave Governance V2 has been audited by Peckshied, with the final report [here](./audits/PeckShield-Audit-AaveGovernance2-final.pdf)
 
 ## Planned configurations for mainnet
 
