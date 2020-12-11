@@ -4,6 +4,10 @@
 
 ![governance-v2-architecture](./gov-v2-architecture.jpg)
 
+## Audits
+
+The Aave Governance V2 has been audited by Peckshied, with the final report [here](./audits/PeckShield-Audit-AaveGovernance2.pdf)
+
 ## Planned configurations for mainnet
 
 ### AaveGovernanceV2
