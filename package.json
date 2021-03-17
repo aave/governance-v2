@@ -2,6 +2,11 @@
   "name": "@aave/governance-v2",
   "version": "1.0.0",
   "description": "Aave Governance v2 smart contracts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aave/governance-v2.git"
+  },
+  "homepage": "https://github.com/aave/governance-v2",
   "files": [
     "contracts",
     "artifacts"
@@ -20,6 +25,9 @@
     "migrate:dev": "npm run compile:force:quiet && hardhat migrate:dev",
     "types-gen": "hardhat typechain",
     "prepublishOnly": "npm run compile"
+  },
+  "dependencies": {
+    "@aave/aave-token": "^1.0.4"
   },
   "devDependencies": {
     "@nomiclabs/buidler-waffle": "2.0.0",
@@ -94,8 +102,5 @@
       "email": "hadrien@aave.com"
     }
   ],
-  "license": "AGPLv3",
-  "dependencies": {
-    "@aave/aave-token": "^1.0.4"
-  }
+  "license": "AGPLv3"
 }
