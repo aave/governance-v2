@@ -47,6 +47,37 @@ It will control the upgradeability of the AAVE token, the stkAAVE, any change in
 - Voting and proposition power are: balanceOfAAVE + delegationReceivedOfAAVE + balanceOfstkAAVE + delegationReceivedOfstkAAVE (with delegation being voting or proposition depending on the case)
 - Total voting and proposition supply: AAVE supply
 
+## Getting Started
+
+You can install `@aave/governance-v2` as an NPM package in your Hardhat, Buidler or Truffle project to import the contracts and interfaces:
+
+`npm install @aave/governance-v2`
+
+Import at Solidity files:
+
+```
+import {IAaveGovernanceV2} from "@aave/governance-v2/contracts/interfaces/IAaveGovernanceV2.sol";
+
+contract Misc {
+
+  function vote(uint256 proposal, bool support) {
+    IAaveGovernanceV2(pool).submitVote(proposal, support);
+    {...}
+  }
+}
+```
+
+The JSON artifacts with the ABI and Bytecode are also included into the bundled NPM package at `artifacts/` directory.
+
+Import JSON file via Node JS `require`:
+
+```
+const GovernanceV2Artifact = require('@aave/governance-v2/artifacts/contracts/governance/AaveGovernanceV2.sol/AaveGovernanceV2.json');
+
+// Log the ABI into console
+console.log(GovernanceV2Artifact.abi)
+```
+
 ## Setup
 
 The repository uses Docker Compose to manage sensitive keys and load the configuration. Prior any action like test or deploy, you must run `docker-compose up` to start the `contracts-env` container, and then connect to the container console via `docker-compose exec contracts-env bash`.
@@ -63,9 +94,6 @@ MNEMONIC=""
 # Add Alchemy or Infura provider keys, alchemy takes preference at the config level
 ALCHEMY_KEY=""
 INFURA_KEY=""
-
-# Your access token from Gitlab, with the api scope enabled, to install @aave/aave-token package from Gitlab Package Registry. Check this guide to get one https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html
-GITLAB_ACCESS_TOKEN=""
 
 # Optional Etherscan key, for automatize the verification of the contracts at Etherscan
 ETHERSCAN_KEY=""
