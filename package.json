@@ -1,9 +1,13 @@
 {
-  "name": "@aave-tech/aave-governance-v2",
+  "name": "@aave/governance-v2",
   "version": "1.0.0",
   "description": "Aave Governance v2 smart contracts",
+  "files": [
+    "contracts",
+    "artifacts"
+  ],
   "scripts": {
-    "run-env": "npm run load:npm && npm i && tail -f /dev/null",
+    "run-env": "npm i && tail -f /dev/null",
     "hardhat": "hardhat",
     "compile": "SKIP_LOAD=true hardhat compile",
     "compile:force": "npm run compile -- --force",
@@ -14,8 +18,8 @@
     "ci:test": "npm run compile:force:quiet && npm run test",
     "ci:clean": "rm -rf ./artifacts ./cache ./types ./coverage*",
     "migrate:dev": "npm run compile:force:quiet && hardhat migrate:dev",
-    "load:npm": "npm config set @aave-tech:registry https://gitlab.com/api/v4/projects/19392283/packages/npm/ && npm config set '//gitlab.com/api/v4/packages/npm/:_authToken' ${GITLAB_ACCESS_TOKEN} && npm config set '//gitlab.com/api/v4/projects/19392283/packages/npm/:_authToken' ${GITLAB_ACCESS_TOKEN}",
-    "types-gen": "hardhat typechain"
+    "types-gen": "hardhat typechain",
+    "prepublishOnly": "npm run compile"
   },
   "devDependencies": {
     "@nomiclabs/buidler-waffle": "2.0.0",
@@ -92,9 +96,6 @@
   ],
   "license": "AGPLv3",
   "dependencies": {
-    "@aave-tech/aave-token": "master"
-  },
-  "publishConfig": {
-    "@aave-tech:registry": "https://gitlab.com/api/v4/projects/22299695/packages/npm/"
+    "@aave/aave-token": "^1.0.4"
   }
 }

@@ -1,4 +1,4 @@
-import {AaveToken} from '@aave-tech/aave-token/contracts/token/AaveToken.sol';
+import {AaveToken} from '@aave/aave-token/contracts/token/AaveToken.sol';
 
 contract AaveTokenV1Mock is AaveToken {
   /**
