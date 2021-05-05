@@ -11,6 +11,8 @@ import {
   advanceBlockTo,
   DRE,
   advanceBlock,
+  latestBlock,
+  increaseTime,
 } from '../helpers/misc-utils';
 import {
   emptyBalances,
@@ -24,6 +26,7 @@ import {deployFlashAttacks, deployGovernanceStrategy} from '../helpers/contracts
 import {buildPermitParams, getSignatureFromTypedData} from './helpers/permit';
 import {fail} from 'assert';
 import {FlashAttacks} from '../types/FlashAttacks';
+import {ExecutorFactory} from '../types';
 
 use(solidity);
 
@@ -56,6 +59,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
   let gracePeriod: BigNumber;
   let flashAttacks: FlashAttacks;
   let executorSigner: Signer;
+  let govSigner: Signer;
 
   // Snapshoting main states as entry for later testing
   // Then will test by last snap shot first.
@@ -72,8 +76,9 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       gracePeriod,
     } = await getInitContractData(testEnv));
     // Impersonate executor
-    await impersonateAccountsHardhat([executor.address]);
+    await impersonateAccountsHardhat([executor.address, gov.address]);
     executorSigner = await DRE.ethers.provider.getSigner(executor.address);
+    govSigner = await DRE.ethers.provider.getSigner(gov.address);
     // Deploy flash attacks contract and approve from minter address
     flashAttacks = await deployFlashAttacks(aave.address, minter.address, gov.address);
     await aave.connect(minter.signer).approve(flashAttacks.address, MAX_UINT_AMOUNT);
@@ -515,7 +520,36 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
     });
   });
-
+  describe('Testing queue  revert', function () {
+    beforeEach(async () => {
+      await evmRevert(snapshots.get('active') || '1');
+      await expectProposalState(proposal2Id, proposalStates.ACTIVE, testEnv);
+      snapshots.set('active', await evmSnapshot());
+    });
+    it('Queue an ACTIVE proposal should revert', async () => {
+      const {
+        gov,
+        users: [user],
+      } = testEnv;
+      await expect(gov.connect(user.signer).queue(proposal2Id)).to.be.revertedWith(
+        'INVALID_STATE_FOR_QUEUE'
+      );
+    });
+  });
+  describe('Testing getProposalState revert', function () {
+    beforeEach(async () => {
+      await evmRevert(snapshots.get('active') || '1');
+      await expectProposalState(proposal2Id, proposalStates.ACTIVE, testEnv);
+      snapshots.set('active', await evmSnapshot());
+    });
+    it('Try to queue an non existing proposal should revert with INVALID_PROPOSAL_ID', async () => {
+      const {
+        gov,
+        users: [user],
+      } = testEnv;
+      await expect(gov.connect(user.signer).queue('100')).to.be.revertedWith('INVALID_PROPOSAL_ID');
+    });
+  });
   describe('Testing voting functions', function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('active') || '1');
@@ -701,6 +735,32 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const {votingPower} = await gov.getVoteOnProposal(proposal2Id, user3.address);
       expect(votingPower).to.be.eq(balance);
     });
+    it('Revert permit vote if invalid signature', async () => {
+      const {
+        users: [, , user3],
+        minter,
+        aave,
+        gov,
+      } = testEnv;
+      const {chainId} = await DRE.ethers.provider.getNetwork();
+      const configChainId = DRE.network.config.chainId;
+      // ChainID must exist in current provider to work
+      expect(configChainId).to.be.equal(chainId);
+      if (!chainId) {
+        fail("Current network doesn't have CHAIN ID");
+      }
+
+      // Prepare signature
+      const msgParams = buildPermitParams(chainId, gov.address, proposal2Id.toString(), true);
+      const ownerPrivateKey = require('../test-wallets.js').accounts[4].secretKey; // deployer, minter, user1, user2, user3
+
+      const {r, s} = getSignatureFromTypedData(ownerPrivateKey, msgParams);
+
+      // Publish vote by signature using other address as relayer
+      expect(
+        gov.connect(user3.signer).submitVoteBySignature(proposal2Id, true, '17', r, s)
+      ).to.revertedWith('INVALID_SIGNATURE');
+    });
     it('Should not allow Flash vote: the voting power should be zero', async () => {
       const {
         gov,
@@ -720,10 +780,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const {
         gov,
         strategy,
-        users: [user1, user2, user3, user4],
-        minter,
-        executor,
-        aave,
+        users: [user2],
       } = testEnv;
       // User 2 + User 5 delegation = 20% power, voting yes
       //  user 2 has received delegation from user 5
@@ -733,6 +790,18 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         .withArgs(proposal2Id, user2.address, true, power2);
       await expect(gov.connect(user2.signer).submitVote(proposal2Id, true)).to.be.revertedWith(
         'VOTE_ALREADY_SUBMITTED'
+      );
+    });
+    it('Vote should revert if proposal is closed', async () => {
+      // Vote
+      const {
+        gov,
+        users: [user2],
+      } = testEnv;
+
+      await advanceBlockTo((await latestBlock()) + 20);
+      await expect(gov.connect(user2.signer).submitVote(proposal2Id, true)).to.be.revertedWith(
+        'VOTING_CLOSED'
       );
     });
   });
@@ -745,10 +814,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     it('should not cancel when Threshold is higher than minimum and not guardian', async () => {
       const {
         gov,
-        deployer, // deployer is guardian
         users: [user],
-        aave,
-        minter,
       } = testEnv;
       // giving threshold power
       await setBalance(user, minimumCreatePower, testEnv);
@@ -760,10 +826,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     it('should cancel a active proposal when threshold lost and not guardian', async () => {
       const {
         gov,
-        deployer, // deployer is guardian
         users: [user],
-        aave,
-        minter,
         executor,
       } = testEnv;
       // removing threshold power
@@ -781,8 +844,6 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         gov,
         deployer, // deployer is guardian
         users: [user],
-        aave,
-        minter,
         executor,
       } = testEnv;
       // removing threshold power
@@ -808,9 +869,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         gov,
         deployer, // deployer is guardian
         users: [user],
-        aave,
         executor,
-        minter,
       } = testEnv;
       // giving threshold power to creator
       await setBalance(user, minimumCreatePower, testEnv);
@@ -824,11 +883,8 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     it('should cancel an active proposal when threshold lost and not guardian', async () => {
       const {
         gov,
-        deployer, // deployer is guardian
         users: [user],
-        aave,
         executor,
-        minter,
       } = testEnv;
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
@@ -851,10 +907,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     it('should not cancel when Threshold is higher than minimum and not guardian', async () => {
       const {
         gov,
-        deployer, // deployer is guardian
         users: [user],
-        aave,
-        minter,
       } = testEnv;
       // giving threshold power
       await setBalance(user, minimumCreatePower, testEnv);
@@ -866,11 +919,8 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     it('should cancel a pending proposal when threshold lost and not guardian', async () => {
       const {
         gov,
-        deployer, // deployer is guardian
         executor,
         users: [user],
-        aave,
-        minter,
       } = testEnv;
       // removing threshold power
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
@@ -888,8 +938,6 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         deployer, // deployer is guardian
         executor,
         users: [user],
-        aave,
-        minter,
       } = testEnv;
       // removing threshold power
       // cancelled
@@ -915,8 +963,6 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         deployer, // deployer is guardian
         users: [user],
         executor,
-        aave,
-        minter,
       } = testEnv;
       // giving threshold power to creator
       await setBalance(user, minimumCreatePower, testEnv);
@@ -940,10 +986,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const {
         gov,
         users: [user],
-        minter,
         executor,
-        aave,
-        strategy,
       } = testEnv;
       // Give not enough AAVE for proposition tokens
       await setBalance(user, minimumCreatePower.sub('1'), testEnv);
@@ -968,9 +1011,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const {
         gov,
         users: [user],
-        minter,
         executor,
-        aave,
         strategy,
       } = testEnv;
 
@@ -1028,7 +1069,6 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const {
         gov,
         users: [user, user2],
-        minter,
         executor,
         aave,
         strategy,
@@ -1090,16 +1130,10 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const {
         gov,
         users: [user],
-        minter,
         executor,
-        aave,
-        strategy,
       } = testEnv;
       // Give enought AAVE for proposition tokens
       await setBalance(user, minimumCreatePower, testEnv);
-
-      // Count current proposal id
-      const count = await gov.connect(user.signer).getProposalsCount();
 
       // Params with no target
       const params: [
@@ -1121,16 +1155,9 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const {
         gov,
         users: [user],
-        minter,
-        executor,
-        aave,
-        strategy,
       } = testEnv;
       // Give enought AAVE for proposition tokens
       await setBalance(user, minimumCreatePower, testEnv);
-
-      // Count current proposal id
-      const count = await gov.connect(user.signer).getProposalsCount();
 
       // Params with not authorized user as executor
       const params: [
@@ -1157,9 +1184,6 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       // Give enought AAVE for proposition tokens
       await setBalance(user, minimumCreatePower, testEnv);
 
-      // Count current proposal id
-      const count = await gov.connect(user.signer).getProposalsCount();
-
       // Params with no target
       const params: [
         string,
@@ -1184,8 +1208,6 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       } = testEnv;
       // Give enought AAVE for proposition tokens
       await setBalance(user, minimumCreatePower, testEnv);
-
-      const count = await gov.connect(user.signer).getProposalsCount();
 
       const params: (
         targetsLength: number,
@@ -1233,9 +1255,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const {
         gov,
         users: [user],
-        minter,
         executor,
-        aave,
         strategy,
       } = testEnv;
       // Give enought AAVE for proposition tokens
@@ -1387,6 +1407,97 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const isAuthorized = await gov.connect(executorSigner).isExecutorAuthorized(executor.address);
 
       expect(isAuthorized).to.equal(true);
+    });
+    it('Revert setDelay due is not executor', async () => {
+      const {executor} = testEnv;
+
+      await expect(executor.setDelay(await executor.MINIMUM_DELAY())).to.be.revertedWith(
+        'ONLY_BY_THIS_TIMELOCK'
+      );
+    });
+    it('Revert setDelay due is out of minimum delay', async () => {
+      const {executor} = testEnv;
+
+      await expect(executor.connect(executorSigner).setDelay('0')).to.be.revertedWith(
+        'DELAY_SHORTER_THAN_MINIMUM'
+      );
+    });
+    it('Revert setDelay due is out of max delay', async () => {
+      const {executor} = testEnv;
+
+      await expect(
+        executor.connect(executorSigner).setDelay(await (await executor.MAXIMUM_DELAY()).add('1'))
+      ).to.be.revertedWith('DELAY_LONGER_THAN_MAXIMUM');
+    });
+    it('setDelay should pass delay', async () => {
+      const {executor} = testEnv;
+
+      await expect(executor.connect(executorSigner).setDelay(await executor.getDelay())).to.emit(
+        executor,
+        'NewDelay'
+      );
+    });
+    it('Revert queueTransaction due caller is not admin', async () => {
+      const {executor} = testEnv;
+
+      await expect(
+        executor.connect(executorSigner).queueTransaction(ZERO_ADDRESS, '0', '', [], '0', false)
+      ).to.be.revertedWith('ONLY_BY_ADMIN');
+    });
+
+    it('Revert queueTransaction due executionTime is less than delay', async () => {
+      const {executor} = testEnv;
+
+      await expect(
+        executor.connect(govSigner).queueTransaction(ZERO_ADDRESS, '0', '', [], '0', false)
+      ).to.be.revertedWith('EXECUTION_TIME_UNDERESTIMATED');
+    });
+    it('Revert executeTransaction due action does not exist', async () => {
+      const {executor} = testEnv;
+
+      await expect(
+        executor.connect(govSigner).executeTransaction(ZERO_ADDRESS, '0', '', [], '0', false)
+      ).to.be.revertedWith('ACTION_NOT_QUEUED');
+    });
+
+    it('Revert acceptAdmin due caller is not a pending admin', async () => {
+      const {executor} = testEnv;
+
+      await expect(executor.connect(executorSigner).acceptAdmin()).to.be.revertedWith(
+        'ONLY_BY_PENDING_ADMIN'
+      );
+    });
+    it('Revert constructor due delay is shorted than minimum', async () => {
+      const {deployer} = testEnv;
+      await expect(
+        new ExecutorFactory(deployer.signer).deploy(
+          ZERO_ADDRESS,
+          '1',
+          '0',
+          '2',
+          '3',
+          '0',
+          '0',
+          '0',
+          '0'
+        )
+      ).to.be.revertedWith('DELAY_SHORTER_THAN_MINIMUM');
+    });
+    it('Revert constructor due delay is longer than maximum', async () => {
+      const {deployer} = testEnv;
+      await expect(
+        new ExecutorFactory(deployer.signer).deploy(
+          ZERO_ADDRESS,
+          '1',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0'
+        )
+      ).to.be.revertedWith('DELAY_LONGER_THAN_MAXIMUM');
     });
   });
   describe('Testing guardian functions', function () {

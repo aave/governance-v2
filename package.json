@@ -18,7 +18,7 @@
     "compile:force": "npm run compile -- --force",
     "compile:force:quiet": "npm run compile:force -- --quiet",
     "test": "npm run compile:force:quiet && TS_NODE_TRANSPILE_ONLY=1 hardhat test",
-    "coverage": "npm run compile && npx hardhat coverage --testfiles \"test/governance.spec.ts\"",
+    "coverage": "npx hardhat coverage --testfiles \"test/governance.spec.ts\"",
     "dev:prettier": "prettier --write .",
     "ci:test": "npm run compile:force:quiet && npm run test",
     "ci:clean": "rm -rf ./artifacts ./cache ./types ./coverage*",
