@@ -1,8 +1,10 @@
 import {BigNumber, Signer, BigNumberish} from 'ethers';
-import {SignerWithAddress, TestEnv } from './make-suite';
+import {SignerWithAddress, TestEnv} from './make-suite';
 import {latestBlock, DRE} from '../../helpers/misc-utils';
 import {expect, use} from 'chai';
-import { Test } from 'mocha';
+import {Test} from 'mocha';
+import {getFirstSigner} from '../../helpers/contracts-getters';
+import {SelfdestructTransferFactory} from '../../types';
 
 export const emptyBalances = async (users: SignerWithAddress[], testEnv: TestEnv) => {
   for (let i = 0; i < users.length; i++) {
@@ -13,7 +15,7 @@ export const emptyBalances = async (users: SignerWithAddress[], testEnv: TestEnv
   }
 };
 
-export const setBalance = async (user: SignerWithAddress, amount:BigNumber, testEnv: TestEnv) => {
+export const setBalance = async (user: SignerWithAddress, amount: BigNumber, testEnv: TestEnv) => {
   // emptying
   const balanceBefore = await testEnv.aave.connect(user.signer).balanceOf(user.address);
   await (
@@ -54,3 +56,26 @@ export const getLastProposalId = async (testEnv: TestEnv) => {
 
 export const encodeSetDelay = async (newDelay: string, testEnv: TestEnv) =>
   testEnv.gov.interface.encodeFunctionData('setVotingDelay', [BigNumber.from(newDelay)]);
+
+export const impersonateAccountsHardhat = async (accounts: string[]) => {
+  if (process.env.TENDERLY === 'true') {
+    return;
+  }
+  // eslint-disable-next-line no-restricted-syntax
+  for (const account of accounts) {
+    // eslint-disable-next-line no-await-in-loop
+    await DRE.network.provider.request({
+      method: 'hardhat_impersonateAccount',
+      params: [account],
+    });
+    // Send ether to the impersonated address, which is a non payable contract via selfdestruct
+    const selfDestructContract = await new SelfdestructTransferFactory(
+      await getFirstSigner()
+    ).deploy();
+    await (
+      await selfDestructContract.destroyAndTransfer(account, {
+        value: DRE.ethers.utils.parseEther('1'),
+      })
+    ).wait();
+  }
+};

@@ -1,20 +1,14 @@
 import {expect, use} from 'chai';
 import {ipfsBytes32Hash, MAX_UINT_AMOUNT, ZERO_ADDRESS} from '../helpers/constants';
-import {
-  makeSuite,
-  TestEnv,
-  deployGovernance,
-  deployGovernanceWithoutExecutorAsOwner,
-} from './helpers/make-suite';
+import {makeSuite, TestEnv, deployGovernance} from './helpers/make-suite';
 import {solidity} from 'ethereum-waffle';
-import {BytesLike, formatEther, parseEther, splitSignature} from 'ethers/lib/utils';
-import {BigNumberish, BigNumber, Wallet} from 'ethers';
+import {BytesLike} from 'ethers/lib/utils';
+import {BigNumberish, BigNumber, Signer} from 'ethers';
 import {
   evmRevert,
   evmSnapshot,
   waitForTx,
   advanceBlockTo,
-  latestBlock,
   DRE,
   advanceBlock,
 } from '../helpers/misc-utils';
@@ -24,10 +18,12 @@ import {
   setBalance,
   expectProposalState,
   encodeSetDelay,
+  impersonateAccountsHardhat,
 } from './helpers/gov-utils';
-import {deployGovernanceStrategy} from '../helpers/contracts-deployments';
+import {deployFlashAttacks, deployGovernanceStrategy} from '../helpers/contracts-deployments';
 import {buildPermitParams, getSignatureFromTypedData} from './helpers/permit';
 import {fail} from 'assert';
+import {FlashAttacks} from '../types/FlashAttacks';
 
 use(solidity);
 
@@ -53,16 +49,19 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
   let proposal1Id: BigNumber;
   let proposal2Id: BigNumber;
   let proposal3Id: BigNumber;
+  let proposal4Id: BigNumber;
   let startBlock: BigNumber;
   let endBlock: BigNumber;
   let executionTime: BigNumber;
   let gracePeriod: BigNumber;
+  let flashAttacks: FlashAttacks;
+  let executorSigner: Signer;
 
   // Snapshoting main states as entry for later testing
   // Then will test by last snap shot first.
   before(async () => {
     const {gov, executor, strategy, aave, users, minter} = testEnv;
-    const [user1, user2, user3, user4, user5] = users;
+    const [user1, user2, user3, user4, user5, user6] = users;
 
     ({
       votingDelay,
@@ -72,6 +71,12 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       minimumCreatePower,
       gracePeriod,
     } = await getInitContractData(testEnv));
+    // Impersonate executor
+    await impersonateAccountsHardhat([executor.address]);
+    executorSigner = await DRE.ethers.provider.getSigner(executor.address);
+    // Deploy flash attacks contract and approve from minter address
+    flashAttacks = await deployFlashAttacks(aave.address, minter.address, gov.address);
+    await aave.connect(minter.signer).approve(flashAttacks.address, MAX_UINT_AMOUNT);
 
     // Cleaning users balances
     await emptyBalances(users, testEnv);
@@ -201,7 +206,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     executionTime = (await gov.getProposalById(proposal2Id)).executionTime;
     snapshots.set('queued', await evmSnapshot());
   });
-  describe('Testing cancel function on queued proposal on gov + exec', async function () {
+  describe('Testing cancel function on queued proposal on gov + exec', function () {
     beforeEach(async () => {
       // Revert to queued state
       await evmRevert(snapshots.get('queued') || '1');
@@ -279,7 +284,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
   });
-  describe('Testing execute function', async function () {
+  describe('Testing execute function', function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('queued') || '1');
       await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
@@ -350,6 +355,8 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
         .to.emit(gov, 'ProposalExecuted')
         .withArgs(proposal2Id, user.address);
       expect(await gov.getVotingDelay()).to.be.equal(BigNumber.from('300'));
+      const proposalState = await gov.getProposalState(proposal2Id);
+      expect(proposalState).to.equal(proposalStates.EXECUTED);
     });
     it('should execute one proposal with sig + argument', async () => {
       const {
@@ -391,7 +398,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       expect(await executor.getAdmin()).to.be.equal(user.address);
     });
   });
-  describe('Testing cancel function on succeeded proposal', async function () {
+  describe('Testing cancel function on succeeded proposal', function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('succeeded') || '1');
       await expectProposalState(proposal2Id, proposalStates.SUCCEEDED, testEnv);
@@ -484,7 +491,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
   });
-  describe('Testing queue function', async function () {
+  describe('Testing queue function', function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('succeeded') || '1');
       await expectProposalState(proposal2Id, proposalStates.SUCCEEDED, testEnv);
@@ -508,7 +515,8 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       await expectProposalState(proposal2Id, proposalStates.QUEUED, testEnv);
     });
   });
-  describe('Testing voting functions', async function () {
+
+  describe('Testing voting functions', function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('active') || '1');
       await expectProposalState(proposal2Id, proposalStates.ACTIVE, testEnv);
@@ -689,9 +697,46 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       await expect(Promise.resolve(votePermitTx))
         .to.emit(gov, 'VoteEmitted')
         .withArgs(proposal2Id, user3.address, true, balance);
+
+      const {votingPower} = await gov.getVoteOnProposal(proposal2Id, user3.address);
+      expect(votingPower).to.be.eq(balance);
+    });
+    it('Should not allow Flash vote: the voting power should be zero', async () => {
+      const {
+        gov,
+        users: [, , , , , user6],
+      } = testEnv;
+
+      // Check ProposalCreated event
+      const support = true;
+
+      // Vote
+      await expect(flashAttacks.connect(user6.signer).flashVote(minimumPower, proposal2Id, support))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposal2Id, flashAttacks.address, support, '0');
+    });
+    it('Prevent to vote twice', async () => {
+      // Vote
+      const {
+        gov,
+        strategy,
+        users: [user1, user2, user3, user4],
+        minter,
+        executor,
+        aave,
+      } = testEnv;
+      // User 2 + User 5 delegation = 20% power, voting yes
+      //  user 2 has received delegation from user 5
+      const power2 = await strategy.getVotingPowerAt(user2.address, startBlock);
+      await expect(gov.connect(user2.signer).submitVote(proposal2Id, true))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposal2Id, user2.address, true, power2);
+      await expect(gov.connect(user2.signer).submitVote(proposal2Id, true)).to.be.revertedWith(
+        'VOTE_ALREADY_SUBMITTED'
+      );
     });
   });
-  describe('Testing cancel function on active proposal', async function () {
+  describe('Testing cancel function on active proposal', function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('active') || '1');
       await expectProposalState(proposal2Id, proposalStates.ACTIVE, testEnv);
@@ -797,7 +842,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
   });
-  describe('Testing cancel function pending proposal', async function () {
+  describe('Testing cancel function pending proposal', function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('pending') || '1');
       await expectProposalState(proposal2Id, proposalStates.PENDING, testEnv);
@@ -883,7 +928,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       await expectProposalState(proposal2Id, proposalStates.CANCELED, testEnv);
     });
   });
-  describe('Testing create function', async function () {
+  describe('Testing create function', function () {
     beforeEach(async () => {
       await evmRevert(snapshots.get('start') || '1');
       snapshots.set('start', await evmSnapshot());
@@ -1107,10 +1152,7 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const {
         gov,
         users: [user],
-        minter,
         executor,
-        aave,
-        strategy,
       } = testEnv;
       // Give enought AAVE for proposition tokens
       await setBalance(user, minimumCreatePower, testEnv);
@@ -1138,15 +1180,11 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       const {
         gov,
         users: [user],
-        minter,
         executor,
-        aave,
-        strategy,
       } = testEnv;
       // Give enought AAVE for proposition tokens
       await setBalance(user, minimumCreatePower, testEnv);
 
-      // Count current proposal id
       const count = await gov.connect(user.signer).getProposalsCount();
 
       const params: (
@@ -1258,75 +1296,181 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
       }
     });
   });
+  describe('Testing create function', function () {
+    beforeEach(async () => {
+      await evmRevert(snapshots.get('start') || '1');
+      snapshots.set('start', await evmSnapshot());
+    });
+    it('Should not allow Flash proposal', async () => {
+      const {
+        users: [, , , , , user6],
+        executor,
+      } = testEnv;
+
+      // Params for proposal
+      const params: [
+        BigNumberish,
+        string,
+        string[],
+        BigNumberish[],
+        string[],
+        BytesLike[],
+        boolean[],
+        BytesLike
+      ] = [
+        minimumCreatePower,
+        executor.address,
+        [ZERO_ADDRESS],
+        ['0'],
+        [''],
+        ['0x'],
+        [false],
+        ipfsBytes32Hash,
+      ];
+
+      // Try to create proposal
+      await expect(flashAttacks.connect(user6.signer).flashProposal(...params)).to.be.revertedWith(
+        'PROPOSITION_CREATION_INVALID'
+      );
+    });
+  });
+  describe('Testing setter functions', function () {
+    beforeEach(async () => {
+      await evmRevert(snapshots.get('start') || '1');
+      snapshots.set('start', await evmSnapshot());
+    });
+
+    it('Set governance strategy', async () => {
+      const {gov, aave, stkAave} = testEnv;
+
+      const strategy = await deployGovernanceStrategy(aave.address, stkAave.address);
+      // impersonate executor
+
+      // Set new strategy
+      await gov.connect(executorSigner).setGovernanceStrategy(strategy.address);
+      const govStrategy = await gov.getGovernanceStrategy();
+
+      expect(govStrategy).to.equal(strategy.address);
+    });
+
+    it('Set voting delay', async () => {
+      const {gov, deployer} = testEnv;
+
+      // Set voting delay
+      await gov.connect(executorSigner).setVotingDelay('10');
+      const govVotingDelay = await gov.getVotingDelay();
+
+      expect(govVotingDelay).to.equal('10');
+    });
+  });
+  describe('Testing executor auth/unautho functions', function () {
+    beforeEach(async () => {
+      await evmRevert(snapshots.get('start') || '1');
+      snapshots.set('start', await evmSnapshot());
+    });
+
+    it('Unauthorize executor', async () => {
+      const {gov, executor} = testEnv;
+
+      // Unauthorize executor
+      await gov.connect(executorSigner).unauthorizeExecutors([executor.address]);
+      const isAuthorized = await gov.connect(executorSigner).isExecutorAuthorized(executor.address);
+
+      expect(isAuthorized).to.equal(false);
+    });
+
+    it('Authorize executor', async () => {
+      const {gov, executor} = testEnv;
+
+      // Authorize
+      await gov.connect(executorSigner).authorizeExecutors([executor.address]);
+      const isAuthorized = await gov.connect(executorSigner).isExecutorAuthorized(executor.address);
+
+      expect(isAuthorized).to.equal(true);
+    });
+  });
+  describe('Testing guardian functions', function () {
+    beforeEach(async () => {
+      await evmRevert(snapshots.get('start') || '1');
+      snapshots.set('start', await evmSnapshot());
+    });
+    it('Revert abdication due not guardian', async () => {
+      const {
+        gov,
+        users: [user],
+      } = testEnv;
+
+      await expect(gov.connect(user.signer).__abdicate()).to.be.revertedWith('ONLY_BY_GUARDIAN');
+    });
+    it('Abdicate guardian', async () => {
+      const {
+        gov,
+        deployer,
+        users: [user],
+      } = testEnv;
+
+      await gov.connect(deployer.signer).__abdicate();
+      const guardian = await gov.connect(deployer.signer).getGuardian();
+      expect(guardian).to.equal(ZERO_ADDRESS);
+    });
+  });
+  describe('Testing queue duplicate actions', function () {
+    beforeEach(async () => {
+      await evmRevert(snapshots.get('start') || '1');
+      snapshots.set('start', await evmSnapshot());
+
+      const {gov, executor, aave, users} = testEnv;
+      const [user1, user2] = users;
+      const encodedArgument3 = DRE.ethers.utils.defaultAbiCoder.encode(
+        ['address'],
+        [user1.address]
+      );
+      await setBalance(user1, minimumCreatePower, testEnv);
+      await setBalance(user2, minimumPower, testEnv);
+
+      await advanceBlock();
+
+      const tx4 = await waitForTx(
+        await gov
+          .connect(user1.signer)
+          .create(
+            executor.address,
+            [executor.address, executor.address],
+            ['0', '0'],
+            ['setPendingAdmin(address)', 'setPendingAdmin(address)'],
+            [encodedArgument3, encodedArgument3],
+            [false, false],
+            ipfsBytes32Hash
+          )
+      );
+      proposal4Id = tx4.events?.[0].args?.id;
+
+      await expectProposalState(proposal4Id, proposalStates.PENDING, testEnv);
+
+      const txStartBlock = BigNumber.from(tx4.blockNumber).add(votingDelay);
+      const txEndBlock = BigNumber.from(tx4.blockNumber).add(votingDelay).add(votingDuration);
+
+      await advanceBlockTo(Number(txStartBlock.add(2).toString()));
+      await expectProposalState(proposal4Id, proposalStates.ACTIVE, testEnv);
+
+      await expect(gov.connect(user2.signer).submitVote(proposal4Id, true))
+        .to.emit(gov, 'VoteEmitted')
+        .withArgs(proposal4Id, user2.address, true, minimumPower);
+      // go to end of voting period
+      await advanceBlockTo(Number(txEndBlock.add('3').toString()));
+      await expectProposalState(proposal4Id, proposalStates.SUCCEEDED, testEnv);
+    });
+
+    it('Should not queue a proposal action twice', async () => {
+      const {
+        gov,
+        users: [user],
+      } = testEnv;
+      // Queue
+      await expect(gov.connect(user.signer).queue(proposal4Id)).to.revertedWith(
+        'DUPLICATED_ACTION'
+      );
+      await expectProposalState(proposal4Id, proposalStates.SUCCEEDED, testEnv);
+    });
+  });
 });
-makeSuite(
-  'Aave Governance V2 tests: admin functions',
-  deployGovernanceWithoutExecutorAsOwner,
-  (testEnv: TestEnv) => {
-    describe('Testing setter functions', async function () {
-      it('Set governance strategy', async () => {
-        const {gov, deployer, aave, stkAave} = testEnv;
-
-        const strategy = await deployGovernanceStrategy(aave.address, stkAave.address);
-
-        // Set new strategy
-        await gov.connect(deployer.signer).setGovernanceStrategy(strategy.address);
-        const govStrategy = await gov.getGovernanceStrategy();
-
-        expect(govStrategy).to.equal(strategy.address);
-      });
-
-      it('Set voting delay', async () => {
-        const {gov, deployer} = testEnv;
-
-        // Set voting delay
-        await gov.connect(deployer.signer).setVotingDelay('10');
-        const govVotingDelay = await gov.getVotingDelay();
-
-        expect(govVotingDelay).to.equal('10');
-      });
-    });
-    describe('Testing executor auth/unautho functions', async function () {
-      it('Unauthorize executor', async () => {
-        const {gov, deployer, executor} = testEnv;
-
-        // Unauthorize executor
-        await gov.connect(deployer.signer).unauthorizeExecutors([executor.address]);
-        const isAuthorized = await gov
-          .connect(deployer.signer)
-          .isExecutorAuthorized(executor.address);
-
-        expect(isAuthorized).to.equal(false);
-      });
-
-      it('Authorize executor', async () => {
-        const {
-          gov,
-          deployer, // is owner of gov
-          executor,
-        } = testEnv;
-
-        // Authorize
-        await gov.connect(deployer.signer).authorizeExecutors([executor.address]);
-        const isAuthorized = await gov
-          .connect(deployer.signer)
-          .isExecutorAuthorized(executor.address);
-
-        expect(isAuthorized).to.equal(true);
-      });
-    });
-    describe('Testing guardian functions', async function () {
-      it('Abdicate guardian', async () => {
-        const {
-          gov,
-          deployer,
-          users: [user],
-        } = testEnv;
-
-        await gov.connect(deployer.signer).__abdicate();
-        const guardian = await gov.connect(deployer.signer).getGuardian();
-        expect(guardian).to.equal(ZERO_ADDRESS);
-      });
-    });
-  }
-);

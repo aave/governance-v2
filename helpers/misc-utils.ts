@@ -15,7 +15,9 @@ export const getDb = () => low(new FileSync('./deployed-contracts.json'));
 
 export let DRE: HardhatRuntimeEnvironment = {} as HardhatRuntimeEnvironment;
 export const setDRE = (_DRE: HardhatRuntimeEnvironment) => {
-  DRE = _DRE;
+  if (!DRE.config) {
+    DRE = _DRE;
+  }
 };
 
 export const sleep = (milliseconds: number) => {
@@ -24,9 +26,15 @@ export const sleep = (milliseconds: number) => {
 
 export const createRandomAddress = () => Wallet.createRandom().address;
 
-export const evmSnapshot = async () => await DRE.ethers.provider.send('evm_snapshot', []);
+export const evmSnapshot = async () => {
+  const id = await DRE.ethers.provider.send('evm_snapshot', []);
+  return id;
+};
 
-export const evmRevert = async (id: string) => DRE.ethers.provider.send('evm_revert', [id]);
+export const evmRevert = async (id: string) => {
+  const reverted = await DRE.ethers.provider.send('evm_revert', [id]);
+  return reverted;
+};
 
 export const timeLatest = async () => {
   const block = await DRE.ethers.provider.getBlock('latest');
@@ -36,7 +44,8 @@ export const timeLatest = async () => {
 export const advanceBlock = async (timestamp?: number) =>
   await DRE.ethers.provider.send('evm_mine', timestamp ? [timestamp] : []);
 
-export const latestBlock = async () => await DRE.ethers.provider.getBlockNumber();
+export const latestBlock = async () =>
+  parseInt((await DRE.ethers.provider.send('eth_getBlockByNumber', ['latest', false])).number);
 
 export const advanceBlockTo = async (target: number) => {
   const currentBlock = await latestBlock();
@@ -58,7 +67,7 @@ export const increaseTime = async (secondsToIncrease: number) => {
   await DRE.ethers.provider.send('evm_mine', []);
 };
 
-export const waitForTx = async (tx: ContractTransaction) => await tx.wait(1);
+export const waitForTx = async (tx: ContractTransaction) => await tx.wait();
 
 export const filterMapBy = (raw: {[key: string]: any}, fn: (key: string) => boolean) =>
   Object.keys(raw)

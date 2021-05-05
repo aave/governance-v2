@@ -36,9 +36,7 @@ export interface TestEnv {
 
 let buidlerevmSnapshotId: string = '0x1';
 const setBuidlerevmSnapshotId = (id: string) => {
-  if (DRE.network.name === 'hardhat') {
-    buidlerevmSnapshotId = id;
-  }
+  buidlerevmSnapshotId = id;
 };
 
 const testEnv: TestEnv = {
@@ -81,6 +79,7 @@ export async function initializeMakeSuite() {
 
 export async function deployGovernance() {
   console.log('-> Deploying governance test environment...');
+  await rawBRE.run('set-DRE');
   await rawBRE.run('migrate:dev');
   await initializeMakeSuite();
   console.log('\n***************');
@@ -90,6 +89,7 @@ export async function deployGovernance() {
 
 export async function deployGovernanceWithoutExecutorAsOwner() {
   console.log('-> Deploying governance test environment...');
+  await rawBRE.run('set-DRE');
   await rawBRE.run('migrate:dev', {executorAsOwner: 'false'});
   await initializeMakeSuite();
   console.log('\n***************');
@@ -99,6 +99,7 @@ export async function deployGovernanceWithoutExecutorAsOwner() {
 
 export async function deployGovernanceNoDelay() {
   console.log('-> Deploying governance test environment with no delay...');
+  await rawBRE.run('set-DRE');
   await rawBRE.run('migrate:dev', {votingDelay: '0'});
   await initializeMakeSuite();
   console.log('\n***************');
@@ -106,9 +107,12 @@ export async function deployGovernanceNoDelay() {
   console.log('***************\n');
 }
 
-export async function makeSuite(name: string, deployment: () => Promise<void>, tests: (testEnv: TestEnv) => void) {
+export async function makeSuite(
+  name: string,
+  deployment: () => Promise<void>,
+  tests: (testEnv: TestEnv) => void
+) {
   beforeEach(async () => {
-    rawBRE.run('set-DRE');
     setBuidlerevmSnapshotId(await evmSnapshot());
   });
   describe(name, async () => {
