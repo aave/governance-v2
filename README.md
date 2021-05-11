@@ -1,3 +1,7 @@
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Build pass](https://github.com/aave/governance-v2/actions/workflows/node.js.yml/badge.svg)](https://github.com/aave/governance-v2/actions/workflows/node.js.yml)
+[![codecov](https://codecov.io/gh/aave/governance-v2/branch/master/graph/badge.svg?token=cYYgmBJQcO)](https://codecov.io/gh/aave/governance-v2)
+
 # Aave Governance v2
 
 ## Architecture
