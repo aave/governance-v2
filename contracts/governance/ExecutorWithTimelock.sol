@@ -166,7 +166,7 @@ contract ExecutorWithTimelock is IExecutorWithTimelock {
   }
 
   /**
-   * @dev Function, called by Governance, that cancels a transaction, returns the callData executed
+   * @dev Function, called by Governance, that executes a transaction, returns the callData executed
    * @param target smart contract target
    * @param value wei value of the transaction
    * @param signature function signature of the transaction
