@@ -181,6 +181,22 @@ makeSuite('Aave Governance V2 tests', deployGovernance, (testEnv: TestEnv) => {
     // SNAPSHOT: ACTIVE PROPOSAL
     snapshots.set('active', await evmSnapshot());
 
+    // initially expect no votes for the proposal
+    const proposer = user1;
+    const proposerBalance = await aave.connect(proposer.signer).balanceOf(proposer.address);
+    let {forVotes, creator} = await gov.connect(proposer.signer).getProposalById(proposal1Id);
+    expect(forVotes.toNumber()).to.be.equal(0);
+
+    // confirm proposal was created by "proposer"
+    expect(creator).to.be.equal(proposer.address);
+
+    // proposer votes Yea
+    await waitForTx(await gov.connect(proposer.signer).submitVote(proposal1Id, true));
+
+    // number of yea votes should equal proposer's balance
+    forVotes = (await gov.connect(proposer.signer).getProposalById(proposal1Id)).forVotes;
+    expect(forVotes.toString()).to.be.equal(proposerBalance.toString());
+
     // Active => Succeeded, user 2 votes + delegated from 5 > threshold
     await expect(gov.connect(user2.signer).submitVote(proposal2Id, true))
       .to.emit(gov, 'VoteEmitted')
