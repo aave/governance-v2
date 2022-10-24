@@ -37,6 +37,18 @@ It will control the whole Aave protocol v1, the token distributor used in v1, th
 
 It will control the upgradeability of the AAVE token, the stkAAVE, any change in the parameters of the Governance v2 and any change in the parameters of this timelock itself
 
+Current configuration (voted on [Proposal 106](https://app.aave.com/governance/proposal/106/)):
+Code, tests and deployement scripts can be found [here](https://github.com/bgd-labs/aave-gov-level-2-update).
+- admin: Aave Governance v2
+- delay: 7 days
+- grace period: 5 days
+- proposition threshold: 1.25%
+- voting duration: 10 days
+- vote differential: 6.5%
+- quorum: 6.5%
+- voting delay: 7200 blocks (using 12s per block = 1 day) between proposal creation and proposal voting
+
+Deprecated configuration:
 - admin: Aave Governance v2
 - delay: 7 days
 - grace period: 5 days
