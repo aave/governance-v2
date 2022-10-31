@@ -46,7 +46,6 @@ Code, tests and deployement scripts can be found [here](https://github.com/bgd-l
 - voting duration: 10 days
 - vote differential: 6.5%
 - quorum: 6.5%
-- voting delay: 7200 blocks (using 12s per block = 1 day) between proposal creation and proposal voting
 
 Deprecated configuration:
 - admin: Aave Governance v2
