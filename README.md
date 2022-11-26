@@ -16,7 +16,7 @@ The Aave Governance V2 has been audited by Peckshied, with the final report [her
 
 ### AaveGovernanceV2
 
-- voting delay (time between a proposal is submitted and the voting is opened): 0 blocks, as for us this process is done beforehand in the governance forum
+- voting delay: 7200 blocks (using 12s per block = 1 day) between proposal creation and proposal voting
 - guardian: Aave Guardian multisig
 - executors whitelisted: Executor (short) and Executor (long)
 - owner (entity able to change the strategy, voting delay and authorize/unauthorize executors): Executor 2, the long timelock
@@ -46,7 +46,6 @@ Code, tests and deployement scripts can be found [here](https://github.com/bgd-l
 - voting duration: 10 days
 - vote differential: 6.5%
 - quorum: 6.5%
-- voting delay: 7200 blocks (using 12s per block = 1 day) between proposal creation and proposal voting
 
 Deprecated configuration:
 - admin: Aave Governance v2
