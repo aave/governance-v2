@@ -40,11 +40,11 @@ interface IGovernanceV2Helper {
   }
 
   struct Signature {
-    uint256 nonce,
-    uint256 expiry,
-    uint8 permitV,
-    bytes32 permitR,
-    bytes32 permitS,
+    uint256 nonce;
+    uint256 expiry;
+    uint8 permitV;
+    bytes32 permitR;
+    bytes32 permitS;
   }
 
   function getProposals(
@@ -68,7 +68,7 @@ interface IGovernanceV2Helper {
   function delegateTokensBySig(
     address delegatee,
     address[] memory tokens,
-    Signature[] memory signatures,
+    Signature[] memory signatures
   ) external;
 
   function delegateTokensByTypeBySig(
