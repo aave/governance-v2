@@ -116,14 +116,6 @@ contract GovernanceV2Helper is IGovernanceV2Helper {
   }
 }
 
-struct Signature {
-  uint256 nonce,
-  uint256 expiry,
-  uint8 permitV,
-  bytes32 permitR,
-  bytes32 permitS,
-}
-
 function delegateTokensBySig(
   address delegatee,
   address[] calldata tokens,
