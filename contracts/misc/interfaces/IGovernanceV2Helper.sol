@@ -4,6 +4,7 @@ pragma abicoder v2;
 
 import {IAaveGovernanceV2} from '../../interfaces/IAaveGovernanceV2.sol';
 import {IExecutorWithTimelock} from '../../interfaces/IExecutorWithTimelock.sol';
+import {IGovernancePowerDelegationToken} from '../../interfaces/IGovernancePowerDelegationToken.sol';
 
 interface IGovernanceV2Helper {
   struct ProposalStats {
