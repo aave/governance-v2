@@ -3,10 +3,7 @@ pragma solidity 0.7.5;
 pragma abicoder v2;
 
 interface IGovernancePowerDelegationToken {
-  enum DelegationType {
-    VOTING_POWER,
-    PROPOSITION_POWER
-  }
+  enum DelegationType {VOTING_POWER, PROPOSITION_POWER}
 
   /**
    * @dev returns the delegatee of an user
@@ -59,7 +56,7 @@ interface IGovernancePowerDelegationToken {
     uint8 v,
     bytes32 r,
     bytes32 s
-  ) public;
+  ) external;
 
   /**
    * @dev Delegates power from signatory to `delegatee`
@@ -77,5 +74,5 @@ interface IGovernancePowerDelegationToken {
     uint8 v,
     bytes32 r,
     bytes32 s
-  ) public;
+  ) external;
 }
