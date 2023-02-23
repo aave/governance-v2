@@ -8,10 +8,20 @@ import {
   AaveTokenV1MockFactory,
   AaveTokenV2Factory,
   FlashAttacksFactory,
+  GovernanceV2HelperFactory,
 } from '../types';
 import {withSaveAndVerify} from './contracts-helpers';
 import {waitForTx} from './misc-utils';
 import {Interface} from 'ethers/lib/utils';
+
+export const deployGovernanceV2Helper = async (verify?: boolean) => {
+  return withSaveAndVerify(
+    await new GovernanceV2HelperFactory(await getFirstSigner()).deploy(),
+    eContractid.GovernanceV2Helper,
+    [],
+    verify
+  );
+};
 
 export const deployAaveGovernanceV2 = async (
   governanceStrategy: tEthereumAddress,
