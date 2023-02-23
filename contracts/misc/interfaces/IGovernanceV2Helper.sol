@@ -39,6 +39,14 @@ interface IGovernanceV2Helper {
     address delegatedAddressPropositionPower;
   }
 
+  struct Signature {
+    uint256 nonce,
+    uint256 expiry,
+    uint8 permitV,
+    bytes32 permitR,
+    bytes32 permitS,
+  }
+
   function getProposals(
     uint256 skip,
     uint256 limit,
@@ -56,4 +64,10 @@ interface IGovernanceV2Helper {
     view
     virtual
     returns (Power[] memory power);
+
+  function delegateTokensBySig(
+    address delegatee,
+    address[] memory tokens,
+    Signature[] memory signatures,
+  ) external;
 }

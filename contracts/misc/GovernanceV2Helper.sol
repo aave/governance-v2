@@ -115,3 +115,40 @@ contract GovernanceV2Helper is IGovernanceV2Helper {
     return power;
   }
 }
+
+struct Signature {
+  uint256 nonce,
+  uint256 expiry,
+  uint8 permitV,
+  bytes32 permitR,
+  bytes32 permitS,
+}
+
+function delegateTokensBySig(
+  address delegatee,
+  address[] calldata tokens,
+  Signature[] calldata signatures,
+) external
+{
+  require(tokens.length == signatures.length, 'There should be same amount of signatures than tokens');
+  require(tokens.length > 0 , 'There should be tokens and signatures to execute');
+  for (uint256 i = 0; i < tokens.length; i++) {
+    IGovernancePowerDelegationToken delegation = IGovernancePowerDelegationToken(tokens[i]);
+    delegation.delegateBySig(delegatee, delegation.nonce, delegation.expiry, delegation.permitV, delegation.permitS)
+  }
+}
+
+function delegateTokensByTypeBySig(
+  address delegatee,
+  IGovernancePowerDelegationToken.DelegationType powerType,
+  address[] calldata tokens,
+  Signature[] calldata signatures
+) external
+{
+  require(tokens.length == signatures.length, 'There should be same amount of signatures than tokens');
+  require(tokens.length > 0 , 'There should be tokens and signatures to execute');
+  for (uint256 i = 0; i < tokens.length; i++) {
+    IGovernancePowerDelegationToken delegation = IGovernancePowerDelegationToken(tokens[i]);
+    delegation.delegateByTypeBySig(delegatee, powerType, delegation.nonce, delegation.expiry, delegation.permitV, delegation.permitS)
+  }
+}

@@ -3,7 +3,10 @@ pragma solidity 0.7.5;
 pragma abicoder v2;
 
 interface IGovernancePowerDelegationToken {
-  enum DelegationType {VOTING_POWER, PROPOSITION_POWER}
+  enum DelegationType {
+    VOTING_POWER,
+    PROPOSITION_POWER
+  }
 
   /**
    * @dev returns the delegatee of an user
@@ -37,4 +40,42 @@ interface IGovernancePowerDelegationToken {
     uint256 blockNumber,
     DelegationType delegationType
   ) external view returns (uint256);
+
+  /**
+   * @dev Delegates power from signatory to `delegatee`
+   * @param delegatee The address to delegate votes to
+   * @param delegationType the type of delegation (VOTING_POWER, PROPOSITION_POWER)
+   * @param nonce The contract state required to match the signature
+   * @param expiry The time at which to expire the signature
+   * @param v The recovery byte of the signature
+   * @param r Half of the ECDSA signature pair
+   * @param s Half of the ECDSA signature pair
+   **/
+  function delegateByTypeBySig(
+    address delegatee,
+    DelegationType delegationType,
+    uint256 nonce,
+    uint256 expiry,
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+  ) public;
+
+  /**
+   * @dev Delegates power from signatory to `delegatee`
+   * @param delegatee The address to delegate votes to
+   * @param nonce The contract state required to match the signature
+   * @param expiry The time at which to expire the signature
+   * @param v The recovery byte of the signature
+   * @param r Half of the ECDSA signature pair
+   * @param s Half of the ECDSA signature pair
+   **/
+  function delegateBySig(
+    address delegatee,
+    uint256 nonce,
+    uint256 expiry,
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+  ) public;
 }
