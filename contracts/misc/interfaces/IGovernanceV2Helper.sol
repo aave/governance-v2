@@ -70,4 +70,11 @@ interface IGovernanceV2Helper {
     address[] memory tokens,
     Signature[] memory signatures,
   ) external;
+
+  function delegateTokensByTypeBySig(
+    address delegatee,
+    IGovernancePowerDelegationToken.DelegationType powerType,
+    address[] calldata tokens,
+    Signature[] calldata signatures
+  ) external;
 }
