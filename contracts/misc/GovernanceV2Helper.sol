@@ -119,14 +119,22 @@ contract GovernanceV2Helper is IGovernanceV2Helper {
 function delegateTokensBySig(
   address delegatee,
   address[] calldata tokens,
-  Signature[] calldata signatures,
-) external
-{
-  require(tokens.length == signatures.length, 'There should be same amount of signatures than tokens');
-  require(tokens.length > 0 , 'There should be tokens and signatures to execute');
+  Signature[] calldata signatures
+) external {
+  require(
+    tokens.length == signatures.length,
+    'There should be same amount of signatures than tokens'
+  );
+  require(tokens.length > 0, 'There should be tokens and signatures to execute');
   for (uint256 i = 0; i < tokens.length; i++) {
     IGovernancePowerDelegationToken delegation = IGovernancePowerDelegationToken(tokens[i]);
-    delegation.delegateBySig(delegatee, delegation.nonce, delegation.expiry, delegation.permitV, delegation.permitS)
+    delegation.delegateBySig(
+      delegatee,
+      delegation.nonce,
+      delegation.expiry,
+      delegation.permitV,
+      delegation.permitS
+    );
   }
 }
 
@@ -135,12 +143,21 @@ function delegateTokensByTypeBySig(
   IGovernancePowerDelegationToken.DelegationType powerType,
   address[] calldata tokens,
   Signature[] calldata signatures
-) external
-{
-  require(tokens.length == signatures.length, 'There should be same amount of signatures than tokens');
-  require(tokens.length > 0 , 'There should be tokens and signatures to execute');
+) external {
+  require(
+    tokens.length == signatures.length,
+    'There should be same amount of signatures than tokens'
+  );
+  require(tokens.length > 0, 'There should be tokens and signatures to execute');
   for (uint256 i = 0; i < tokens.length; i++) {
     IGovernancePowerDelegationToken delegation = IGovernancePowerDelegationToken(tokens[i]);
-    delegation.delegateByTypeBySig(delegatee, powerType, delegation.nonce, delegation.expiry, delegation.permitV, delegation.permitS)
+    delegation.delegateByTypeBySig(
+      delegatee,
+      powerType,
+      delegation.nonce,
+      delegation.expiry,
+      delegation.permitV,
+      delegation.permitS
+    );
   }
 }
