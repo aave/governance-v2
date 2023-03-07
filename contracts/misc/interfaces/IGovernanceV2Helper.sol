@@ -4,7 +4,9 @@ pragma abicoder v2;
 
 import {IAaveGovernanceV2} from '../../interfaces/IAaveGovernanceV2.sol';
 import {IExecutorWithTimelock} from '../../interfaces/IExecutorWithTimelock.sol';
-import {IGovernancePowerDelegationToken} from '../../interfaces/IGovernancePowerDelegationToken.sol';
+import {
+  IGovernancePowerDelegationToken
+} from '../../interfaces/IGovernancePowerDelegationToken.sol';
 
 interface IGovernanceV2Helper {
   struct ProposalStats {
@@ -40,12 +42,25 @@ interface IGovernanceV2Helper {
     address delegatedAddressPropositionPower;
   }
 
-  struct Signature {
+  struct EIP712Signature {
+    uint8 v;
+    bytes32 r;
+    bytes32 s;
+  }
+
+  struct DelegateTokensByTypeBySigData {
+    address delegatee;
+    IGovernancePowerDelegationToken.DelegationType delegationType;
     uint256 nonce;
     uint256 expiry;
-    uint8 permitV;
-    bytes32 permitR;
-    bytes32 permitS;
+    EIP712Signature signature;
+  }
+
+  struct DelegateTokensBySigData {
+    address delegatee;
+    uint256 nonce;
+    uint256 expiry;
+    EIP712Signature signature;
   }
 
   function getProposals(
@@ -66,16 +81,11 @@ interface IGovernanceV2Helper {
     virtual
     returns (Power[] memory power);
 
-  function delegateTokensBySig(
-    address delegatee,
-    address[] memory tokens,
-    Signature[] memory signatures
-  ) external;
+  function delegateTokensBySig(address[] calldata tokens, DelegateTokensBySigData[] calldata data)
+    external;
 
   function delegateTokensByTypeBySig(
-    address delegatee,
-    IGovernancePowerDelegationToken.DelegationType powerType,
     address[] calldata tokens,
-    Signature[] calldata signatures
+    DelegateTokensByTypeBySigData[] calldata data
   ) external;
 }

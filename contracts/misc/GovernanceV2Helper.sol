@@ -115,50 +115,41 @@ contract GovernanceV2Helper is IGovernanceV2Helper {
     return power;
   }
 
-  function delegateTokensBySig(
-    address delegatee,
-    address[] calldata tokens,
-    Signature[] calldata signatures
-  ) external override {
-    require(
-      tokens.length == signatures.length,
-      'There should be same amount of signatures than tokens'
-    );
-    require(tokens.length > 0, 'There should be tokens and signatures to execute');
+  function delegateTokensBySig(address[] calldata tokens, DelegateTokensBySigData[] calldata data)
+    external
+    override
+  {
+    require(tokens.length == data.length, 'There should be same amount of tokens and data');
+    require(tokens.length > 0, 'There should be tokens, data and signatures to execute');
     for (uint256 i = 0; i < tokens.length; i++) {
       IGovernancePowerDelegationToken delegation = IGovernancePowerDelegationToken(tokens[i]);
       delegation.delegateBySig(
-        delegatee,
-        signatures[i].nonce,
-        signatures[i].expiry,
-        signatures[i].permitV,
-        signatures[i].permitR,
-        signatures[i].permitS
+        data[i].delegatee,
+        data[i].nonce,
+        data[i].expiry,
+        data[i].signature.v,
+        data[i].signature.r,
+        data[i].signature.s
       );
     }
   }
 
   function delegateTokensByTypeBySig(
-    address delegatee,
-    IGovernancePowerDelegationToken.DelegationType powerType,
     address[] calldata tokens,
-    Signature[] calldata signatures
+    DelegateTokensByTypeBySigData[] calldata data
   ) external override {
-    require(
-      tokens.length == signatures.length,
-      'There should be same amount of signatures than tokens'
-    );
-    require(tokens.length > 0, 'There should be tokens and signatures to execute');
+    require(tokens.length == data.length, 'There should be same amount of tokens and data');
+    require(tokens.length > 0, 'There should be tokens, data and signatures to execute');
     for (uint256 i = 0; i < tokens.length; i++) {
       IGovernancePowerDelegationToken delegation = IGovernancePowerDelegationToken(tokens[i]);
       delegation.delegateByTypeBySig(
-        delegatee,
-        powerType,
-        signatures[i].nonce,
-        signatures[i].expiry,
-        signatures[i].permitV,
-        signatures[i].permitR,
-        signatures[i].permitS
+        data[i].delegatee,
+        data[i].delegationType,
+        data[i].nonce,
+        data[i].expiry,
+        data[i].signature.v,
+        data[i].signature.r,
+        data[i].signature.s
       );
     }
   }
