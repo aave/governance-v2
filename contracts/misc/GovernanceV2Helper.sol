@@ -119,17 +119,15 @@ contract GovernanceV2Helper is IGovernanceV2Helper {
     external
     override
   {
-    require(tokens.length == data.length, 'There should be same amount of tokens and data');
-    require(tokens.length > 0, 'There should be tokens, data and signatures to execute');
+    require(tokens.length == data.length, 'INCONSISTENT_PARAMS_LENGTH');
     for (uint256 i = 0; i < tokens.length; i++) {
-      IGovernancePowerDelegationToken delegation = IGovernancePowerDelegationToken(tokens[i]);
-      delegation.delegateBySig(
+      IGovernancePowerDelegationToken(tokens[i]).delegateBySig(
         data[i].delegatee,
         data[i].nonce,
         data[i].expiry,
-        data[i].signature.v,
-        data[i].signature.r,
-        data[i].signature.s
+        data[i].v,
+        data[i].r,
+        data[i].s
       );
     }
   }
@@ -138,18 +136,16 @@ contract GovernanceV2Helper is IGovernanceV2Helper {
     address[] calldata tokens,
     DelegateTokensByTypeBySigData[] calldata data
   ) external override {
-    require(tokens.length == data.length, 'There should be same amount of tokens and data');
-    require(tokens.length > 0, 'There should be tokens, data and signatures to execute');
+    require(tokens.length == data.length, 'INCONSISTENT_PARAMS_LENGTH');
     for (uint256 i = 0; i < tokens.length; i++) {
-      IGovernancePowerDelegationToken delegation = IGovernancePowerDelegationToken(tokens[i]);
-      delegation.delegateByTypeBySig(
+      IGovernancePowerDelegationToken(tokens[i]).delegateByTypeBySig(
         data[i].delegatee,
         data[i].delegationType,
         data[i].nonce,
         data[i].expiry,
-        data[i].signature.v,
-        data[i].signature.r,
-        data[i].signature.s
+        data[i].v,
+        data[i].r,
+        data[i].s
       );
     }
   }

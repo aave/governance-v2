@@ -42,25 +42,23 @@ interface IGovernanceV2Helper {
     address delegatedAddressPropositionPower;
   }
 
-  struct EIP712Signature {
-    uint8 v;
-    bytes32 r;
-    bytes32 s;
-  }
-
   struct DelegateTokensByTypeBySigData {
     address delegatee;
     IGovernancePowerDelegationToken.DelegationType delegationType;
     uint256 nonce;
     uint256 expiry;
-    EIP712Signature signature;
+    uint8 v;
+    bytes32 r;
+    bytes32 s;
   }
 
   struct DelegateTokensBySigData {
     address delegatee;
     uint256 nonce;
     uint256 expiry;
-    EIP712Signature signature;
+    uint8 v;
+    bytes32 r;
+    bytes32 s;
   }
 
   function getProposals(
