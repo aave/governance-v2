@@ -42,7 +42,7 @@ interface IGovernanceV2Helper {
     address delegatedAddressPropositionPower;
   }
 
-  struct DelegateTokensByTypeBySigData {
+  struct DelegateByTypeBySigParams {
     address delegatee;
     IGovernancePowerDelegationToken.DelegationType delegationType;
     uint256 nonce;
@@ -52,7 +52,7 @@ interface IGovernanceV2Helper {
     bytes32 s;
   }
 
-  struct DelegateTokensBySigData {
+  struct DelegateBySigParams {
     address delegatee;
     uint256 nonce;
     uint256 expiry;
@@ -79,11 +79,11 @@ interface IGovernanceV2Helper {
     virtual
     returns (Power[] memory power);
 
-  function delegateTokensBySig(address[] calldata tokens, DelegateTokensBySigData[] calldata data)
+  function delegateTokensBySig(address[] calldata tokens, DelegateBySigParams[] calldata params)
     external;
 
   function delegateTokensByTypeBySig(
     address[] calldata tokens,
-    DelegateTokensByTypeBySigData[] calldata data
+    DelegateByTypeBySigParams[] calldata params
   ) external;
 }

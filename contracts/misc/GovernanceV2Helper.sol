@@ -12,9 +12,10 @@ import {SafeMath} from '../dependencies/open-zeppelin/SafeMath.sol';
 
 /**
  * @title Governance V2 helper contract
- * @dev Allows to easily read data from AaveGovernanceV2 contract
+ * @dev Helper contract to fetch data from the AaveGovernanceV2 contract and batch write calls
  * - List of proposals with state
  * - List of votes per proposal and voters
+ * - Batch token delegations calls
  * @author Aave
  **/
 contract GovernanceV2Helper is IGovernanceV2Helper {
@@ -115,37 +116,37 @@ contract GovernanceV2Helper is IGovernanceV2Helper {
     return power;
   }
 
-  function delegateTokensBySig(address[] calldata tokens, DelegateTokensBySigData[] calldata data)
+  function delegateTokensBySig(address[] calldata tokens, DelegateBySigParams[] calldata params)
     external
     override
   {
-    require(tokens.length == data.length, 'INCONSISTENT_PARAMS_LENGTH');
+    require(tokens.length == params.length, 'INCONSISTENT_PARAMS_LENGTH');
     for (uint256 i = 0; i < tokens.length; i++) {
       IGovernancePowerDelegationToken(tokens[i]).delegateBySig(
-        data[i].delegatee,
-        data[i].nonce,
-        data[i].expiry,
-        data[i].v,
-        data[i].r,
-        data[i].s
+        params[i].delegatee,
+        params[i].nonce,
+        params[i].expiry,
+        params[i].v,
+        params[i].r,
+        params[i].s
       );
     }
   }
 
   function delegateTokensByTypeBySig(
     address[] calldata tokens,
-    DelegateTokensByTypeBySigData[] calldata data
+    DelegateByTypeBySigParams[] calldata params
   ) external override {
-    require(tokens.length == data.length, 'INCONSISTENT_PARAMS_LENGTH');
+    require(tokens.length == params.length, 'INCONSISTENT_PARAMS_LENGTH');
     for (uint256 i = 0; i < tokens.length; i++) {
       IGovernancePowerDelegationToken(tokens[i]).delegateByTypeBySig(
-        data[i].delegatee,
-        data[i].delegationType,
-        data[i].nonce,
-        data[i].expiry,
-        data[i].v,
-        data[i].r,
-        data[i].s
+        params[i].delegatee,
+        params[i].delegationType,
+        params[i].nonce,
+        params[i].expiry,
+        params[i].v,
+        params[i].r,
+        params[i].s
       );
     }
   }
