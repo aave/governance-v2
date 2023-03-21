@@ -41,6 +41,9 @@ task(`migrate:dev`, `Deploy governance for tests and development purposes`)
       verify,
     });
 
+    // Deploy governance v2 helper
+    await DRE.run('deploy:gov-helper');
+
     // Deploy executor
     const delay = '60'; // 60 secs
     const gracePeriod = ONE_DAY.mul('14').toString();

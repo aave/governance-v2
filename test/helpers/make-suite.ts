@@ -10,12 +10,15 @@ import {
   getAaveV2Mocked,
   getExecutor,
   getGovernanceStrategy,
+  getGovernanceV2Helper,
+  getStkAaveV2Mocked,
 } from '../../helpers/contracts-getters';
 import {tEthereumAddress} from '../../helpers/types';
 import {AaveGovernanceV2} from '../../types/AaveGovernanceV2';
 import {AaveTokenV2} from '../../types/AaveTokenV2';
 import {Executor} from '../../types/Executor';
 import {GovernanceStrategy} from '../../types/GovernanceStrategy';
+import {GovernanceV2Helper} from '../../types/GovernanceV2Helper';
 
 chai.use(solidity);
 
@@ -32,6 +35,7 @@ export interface TestEnv {
   gov: AaveGovernanceV2;
   strategy: GovernanceStrategy;
   executor: Executor;
+  govHelper: GovernanceV2Helper;
 }
 
 let buidlerevmSnapshotId: string = '0x1';
@@ -47,6 +51,7 @@ const testEnv: TestEnv = {
   stkAave: {} as AaveTokenV2,
   gov: {} as AaveGovernanceV2,
   strategy: {} as GovernanceStrategy,
+  govHelper: {} as GovernanceV2Helper,
   executor: {} as Executor,
 } as TestEnv;
 
@@ -71,10 +76,11 @@ export async function initializeMakeSuite() {
   testEnv.deployer = deployer;
   testEnv.minter = minter;
   testEnv.aave = await getAaveV2Mocked();
-  testEnv.stkAave = await getAaveV2Mocked();
+  testEnv.stkAave = await getStkAaveV2Mocked();
   testEnv.gov = await getAaveGovernanceV2();
   testEnv.strategy = await getGovernanceStrategy();
   testEnv.executor = await getExecutor();
+  testEnv.govHelper = await getGovernanceV2Helper();
 }
 
 export async function deployGovernance() {

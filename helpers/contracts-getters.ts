@@ -3,6 +3,7 @@ import {
   AaveTokenV2Factory,
   ExecutorFactory,
   GovernanceStrategyFactory,
+  GovernanceV2HelperFactory,
 } from '../types';
 import {DRE, getDb} from './misc-utils';
 import {eContractid, tEthereumAddress} from './types';
@@ -40,5 +41,12 @@ export const getGovernanceStrategy = async (address?: tEthereumAddress) =>
 export const getExecutor = async (address?: tEthereumAddress) =>
   await ExecutorFactory.connect(
     address || (await getDb().get(`${eContractid.Executor}.${DRE.network.name}`).value()).address,
+    await getFirstSigner()
+  );
+
+export const getGovernanceV2Helper = async (address?: tEthereumAddress) =>
+  await GovernanceV2HelperFactory.connect(
+    address ||
+      (await getDb().get(`${eContractid.GovernanceV2Helper}.${DRE.network.name}`).value()).address,
     await getFirstSigner()
   );
