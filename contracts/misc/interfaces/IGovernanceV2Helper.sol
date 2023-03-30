@@ -4,6 +4,9 @@ pragma abicoder v2;
 
 import {IAaveGovernanceV2} from '../../interfaces/IAaveGovernanceV2.sol';
 import {IExecutorWithTimelock} from '../../interfaces/IExecutorWithTimelock.sol';
+import {
+  IGovernancePowerDelegationToken
+} from '../../interfaces/IGovernancePowerDelegationToken.sol';
 
 interface IGovernanceV2Helper {
   struct ProposalStats {
@@ -39,6 +42,25 @@ interface IGovernanceV2Helper {
     address delegatedAddressPropositionPower;
   }
 
+  struct DelegateByTypeBySigParams {
+    address delegatee;
+    IGovernancePowerDelegationToken.DelegationType delegationType;
+    uint256 nonce;
+    uint256 expiry;
+    uint8 v;
+    bytes32 r;
+    bytes32 s;
+  }
+
+  struct DelegateBySigParams {
+    address delegatee;
+    uint256 nonce;
+    uint256 expiry;
+    uint8 v;
+    bytes32 r;
+    bytes32 s;
+  }
+
   function getProposals(
     uint256 skip,
     uint256 limit,
@@ -56,4 +78,12 @@ interface IGovernanceV2Helper {
     view
     virtual
     returns (Power[] memory power);
+
+  function delegateTokensBySig(address[] calldata tokens, DelegateBySigParams[] calldata params)
+    external;
+
+  function delegateTokensByTypeBySig(
+    address[] calldata tokens,
+    DelegateByTypeBySigParams[] calldata params
+  ) external;
 }

@@ -5,6 +5,8 @@ import {expect, use} from 'chai';
 import {Test} from 'mocha';
 import {getFirstSigner} from '../../helpers/contracts-getters';
 import {SelfdestructTransferFactory} from '../../types';
+import {AaveTokenV2} from '../../types/AaveTokenV2';
+import {tEthereumAddress} from '../../helpers/types';
 
 export const emptyBalances = async (users: SignerWithAddress[], testEnv: TestEnv) => {
   for (let i = 0; i < users.length; i++) {
@@ -16,13 +18,20 @@ export const emptyBalances = async (users: SignerWithAddress[], testEnv: TestEnv
 };
 
 export const setBalance = async (user: SignerWithAddress, amount: BigNumber, testEnv: TestEnv) => {
+  await setTokenBalance(user, amount, testEnv.aave, testEnv);
+};
+
+export const setTokenBalance = async (
+  user: SignerWithAddress,
+  amount: BigNumber,
+  token: AaveTokenV2,
+  testEnv: TestEnv
+) => {
   // emptying
-  const balanceBefore = await testEnv.aave.connect(user.signer).balanceOf(user.address);
-  await (
-    await testEnv.aave.connect(user.signer).transfer(testEnv.minter.address, balanceBefore)
-  ).wait();
+  const balanceBefore = await token.connect(user.signer).balanceOf(user.address);
+  await (await token.connect(user.signer).transfer(testEnv.minter.address, balanceBefore)).wait();
   // filling
-  await testEnv.aave.connect(testEnv.minter.signer).transfer(user.address, amount);
+  await token.connect(testEnv.minter.signer).transfer(user.address, amount);
 };
 
 export const getInitContractData = async (testEnv: TestEnv) => ({
@@ -78,4 +87,25 @@ export const impersonateAccountsHardhat = async (accounts: string[]) => {
       })
     ).wait();
   }
+};
+
+export const calculateUserTotalPowers = async (
+  user: SignerWithAddress,
+  tokens: tEthereumAddress[],
+  testEnv: TestEnv
+) => {
+  const {govHelper} = testEnv;
+  const userPowers = await govHelper.connect(user.signer).getTokensPower(user.address, tokens);
+  return userPowers.reduce(
+    (acum, token) => {
+      return {
+        propositionPower: acum.propositionPower.add(token.propositionPower),
+        votingPower: acum.votingPower.add(token.votingPower),
+      };
+    },
+    {
+      propositionPower: BigNumber.from(0),
+      votingPower: BigNumber.from(0),
+    }
+  );
 };
