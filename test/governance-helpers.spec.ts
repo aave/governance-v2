@@ -1,12 +1,12 @@
-import {expect, use} from 'chai';
-import {solidity} from 'ethereum-waffle';
-import {BigNumber} from 'ethers';
-import {MAX_UINT_AMOUNT} from '../helpers/constants';
-import {DRE} from '../helpers/misc-utils';
-import {buildDelegateByTypeParams, buildDelegateParams} from './helpers/delegation';
-import {calculateUserTotalPowers, setTokenBalance} from './helpers/gov-utils';
-import {deployGovernance, makeSuite, TestEnv} from './helpers/make-suite';
-import {getSignatureFromTypedData} from './helpers/permit';
+import { expect, use } from 'chai';
+import { solidity } from 'ethereum-waffle';
+import { BigNumber } from 'ethers';
+import { MAX_UINT_AMOUNT } from '../helpers/constants';
+import { DRE } from '../helpers/misc-utils';
+import { buildDelegateByTypeParams, buildDelegateParams } from './helpers/delegation';
+import { calculateUserTotalPowers, setTokenBalance } from './helpers/gov-utils';
+import { deployGovernance, makeSuite, TestEnv } from './helpers/make-suite';
+import { getSignatureFromTypedData } from './helpers/permit';
 
 enum DelegationType {
   VOTING_POWER = 0,
@@ -35,18 +35,18 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
   });
 
   describe('Testing delegateTokensBySig function', () => {
-    it('should revert with INCONSISTENT_PARAMS_LENGTH if length of tokens is different than params', () => {
+    it('should revert with INCONSISTENT_PARAMS_LENGTH if length of tokens is different than params', async () => {
       const {
         govHelper,
         aave,
         users: [user1],
       } = testEnv;
-      expect(
+      await expect(
         govHelper.connect(user1.signer).delegateTokensBySig([aave.address], [])
       ).to.revertedWith('INCONSISTENT_PARAMS_LENGTH');
     });
     it('should delegate both VOTING and PROPOSITION power from both AAVE and stkAAVE', async () => {
-      const {chainId} = await DRE.ethers.provider.getNetwork();
+      const { chainId } = await DRE.ethers.provider.getNetwork();
       const {
         govHelper,
         aave,
@@ -56,7 +56,6 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
       const user1PrivateKey = require('../test-wallets.js').accounts[2].secretKey;
 
       // building aave signature
-
       const aaveNonce = (await aave.connect(user1.signer)._nonces(user1.address)).toString();
       const aaveTypedData = buildDelegateParams(
         chainId,
@@ -66,7 +65,7 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
         aaveNonce,
         expiry
       );
-      const {v, r, s} = getSignatureFromTypedData(user1PrivateKey, aaveTypedData);
+      const { v, r, s } = getSignatureFromTypedData(user1PrivateKey, aaveTypedData);
       const aaveParams = {
         delegatee: user2.address,
         nonce: aaveNonce,
@@ -77,7 +76,6 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
       };
 
       // building stkAave signature
-
       const stkAaveNonce = (await stkAave.connect(user1.signer)._nonces(user1.address)).toString();
       const stkAaveTypedData = buildDelegateParams(
         chainId,
@@ -87,7 +85,7 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
         stkAaveNonce,
         expiry
       );
-      const {v: v1, r: r1, s: s1} = getSignatureFromTypedData(user1PrivateKey, stkAaveTypedData);
+      const { v: v1, r: r1, s: s1 } = getSignatureFromTypedData(user1PrivateKey, stkAaveTypedData);
       const stkAaveParams = {
         delegatee: user2.address,
         nonce: stkAaveNonce,
@@ -103,9 +101,11 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
         testEnv
       );
 
-      await govHelper
-        .connect(user1.signer)
-        .delegateTokensBySig([aave.address, stkAave.address], [aaveParams, stkAaveParams]);
+      expect(
+        await govHelper
+          .connect(user1.signer)
+          .delegateTokensBySig([aave.address, stkAave.address], [aaveParams, stkAaveParams])
+      );
 
       const user2NewPowers = await calculateUserTotalPowers(
         user2,
@@ -121,19 +121,20 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
       );
     });
   });
+
   describe('Testing delegateTokensByTypeBySig function', () => {
-    it('should revert with INCONSISTENT_PARAMS_LENGTH if length of tokens is different than params', () => {
+    it('should revert with INCONSISTENT_PARAMS_LENGTH if length of tokens is different than params', async () => {
       const {
         govHelper,
         aave,
         users: [user1],
       } = testEnv;
-      expect(
+      await expect(
         govHelper.connect(user1.signer).delegateTokensByTypeBySig([aave.address], [])
       ).to.revertedWith('INCONSISTENT_PARAMS_LENGTH');
     });
     it('should delegate VOTING power from both AAVE and stkAAVE', async () => {
-      const {chainId} = await DRE.ethers.provider.getNetwork();
+      const { chainId } = await DRE.ethers.provider.getNetwork();
       const {
         govHelper,
         aave,
@@ -145,7 +146,6 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
       const powerType = DelegationType.VOTING_POWER;
 
       // building aave signature
-
       const aaveNonce = (await aave.connect(user1.signer)._nonces(user1.address)).toString();
       const aaveTypedData = buildDelegateByTypeParams(
         chainId,
@@ -156,7 +156,7 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
         aaveNonce,
         expiry
       );
-      const {v, r, s} = getSignatureFromTypedData(user1PrivateKey, aaveTypedData);
+      const { v, r, s } = getSignatureFromTypedData(user1PrivateKey, aaveTypedData);
       const aaveParams = {
         delegatee: user2.address,
         delegationType: powerType,
@@ -168,7 +168,6 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
       };
 
       // building stkAave signature
-
       const stkAaveNonce = (await stkAave.connect(user1.signer)._nonces(user1.address)).toString();
       const stkAaveTypedData = buildDelegateByTypeParams(
         chainId,
@@ -179,7 +178,7 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
         stkAaveNonce,
         expiry
       );
-      const {v: v1, r: r1, s: s1} = getSignatureFromTypedData(user1PrivateKey, stkAaveTypedData);
+      const { v: v1, r: r1, s: s1 } = getSignatureFromTypedData(user1PrivateKey, stkAaveTypedData);
       const stkAaveParams = {
         delegatee: user2.address,
         delegationType: powerType,
@@ -189,16 +188,17 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
         r: r1,
         s: s1,
       };
-
       const user2Powers = await calculateUserTotalPowers(
         user2,
         [aave.address, stkAave.address],
         testEnv
       );
 
-      await govHelper
-        .connect(user1.signer)
-        .delegateTokensByTypeBySig([aave.address, stkAave.address], [aaveParams, stkAaveParams]);
+      expect(
+        await govHelper
+          .connect(user1.signer)
+          .delegateTokensByTypeBySig([aave.address, stkAave.address], [aaveParams, stkAaveParams])
+      );
 
       const user2NewPowers = await calculateUserTotalPowers(
         user2,
@@ -211,8 +211,9 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
         user2Powers.votingPower.add(USER1_AAVE_BALANCE).add(USER1_STKAAVE_BALANCE)
       );
     });
+
     it('should delegate PROPOSITION power from both AAVE and stkAAVE', async () => {
-      const {chainId} = await DRE.ethers.provider.getNetwork();
+      const { chainId } = await DRE.ethers.provider.getNetwork();
       const {
         govHelper,
         aave,
@@ -224,7 +225,6 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
       const powerType = DelegationType.PROPOSITION_POWER;
 
       // building aave signature
-
       const aaveNonce = (await aave.connect(user1.signer)._nonces(user1.address)).toString();
       const aaveTypedData = buildDelegateByTypeParams(
         chainId,
@@ -235,7 +235,7 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
         aaveNonce,
         expiry
       );
-      const {v, r, s} = getSignatureFromTypedData(user1PrivateKey, aaveTypedData);
+      const { v, r, s } = getSignatureFromTypedData(user1PrivateKey, aaveTypedData);
       const aaveParams = {
         delegatee: user2.address,
         delegationType: powerType,
@@ -258,7 +258,7 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
         stkAaveNonce,
         expiry
       );
-      const {v: v1, r: r1, s: s1} = getSignatureFromTypedData(user1PrivateKey, stkAaveTypedData);
+      const { v: v1, r: r1, s: s1 } = getSignatureFromTypedData(user1PrivateKey, stkAaveTypedData);
       const stkAaveParams = {
         delegatee: user2.address,
         delegationType: powerType,
@@ -275,9 +275,11 @@ makeSuite('Aave Governance V2 Helpers tests', deployGovernance, (testEnv: TestEn
         testEnv
       );
 
-      await govHelper
-        .connect(user1.signer)
-        .delegateTokensByTypeBySig([aave.address, stkAave.address], [aaveParams, stkAaveParams]);
+      expect(
+        await govHelper
+          .connect(user1.signer)
+          .delegateTokensByTypeBySig([aave.address, stkAave.address], [aaveParams, stkAaveParams])
+      );
 
       const user2NewPowers = await calculateUserTotalPowers(
         user2,
